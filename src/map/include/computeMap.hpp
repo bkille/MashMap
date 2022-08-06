@@ -370,15 +370,15 @@ namespace skch
 
           ///1. Compute the minimizers
 
-          CommonFunc::addMinimizers(Q.minimizerTableQuery, Q.seq, Q.len, param.kmerSize, param.windowSize, param.alphabetSize, Q.seqCounter);
+          CommonFunc::addMashimizers(Q.minimizerTableQuery, Q.seq, Q.len, param.kmerSize, param.windowSize, param.alphabetSize, param.sketchSize, Q.seqCounter);
 
 #ifdef DEBUG
-          std::cout << "INFO, skch::Map:doL1Mapping, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << "\n";
+          std::cout << "INFO, skch::Map:doL1Mapping, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << " " << Q.len << "\n";
 #endif
 
           ///2. Find the hits in the reference, pick 's' unique minimizers as seeds, 
 
-          std::sort(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::lessByHash);
+          //std::sort(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::lessByHash);
 
           //note : unique preserves the original relative order of elements 
           auto uniqEndIter = std::unique(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::equalityByHash);
@@ -416,6 +416,7 @@ namespace skch
           this->computeL1CandidateRegions(Q, seedHitsL1, minimumHits, l1Mappings);
 
 #ifdef DEBUG
+          //std::cout << "INFO, " << Q.sketchSize << std::endl;
           std::cout << "INFO, skch::Map:doL1Mapping, read id " << Q.seqCounter << ", Count of L1 hits in the reference = " << seedHitsL1.size() << ", minimum hits required for a candidate = " << minimumHits << ", Count of L1 candidate regions = " << l1Mappings.size() << "\n";
 #endif
 
@@ -553,6 +554,7 @@ namespace skch
           if ( this->refSketch.isMinimizerIndexEnd(firstSuperWindowRangeStart) || firstSuperWindowRangeStart->seqId != candidateLocus.seqId)
             return;
 
+          //std::cout << "New L2 check\n";
           //Count of minimizer windows in a super-window
           offset_t countMinimizerWindows = Q.len - (param.windowSize-1) - (param.kmerSize-1); 
 
@@ -581,22 +583,30 @@ namespace skch
 
           int beginOptimalPos, lastOptimalPos;
 
+          //while ( std::distance(mi_L2iter.sw_end, lastSuperWindowRangeEnd) >= 0)
           while ( std::distance(mi_L2iter.sw_end, lastSuperWindowRangeEnd) >= 0)
           {
             assert( std::distance(mi_L2iter.sw_beg, firstSuperWindowRangeStart) <= 0);
             assert( std::distance(mi_L2iter.sw_end, lastSuperWindowRangeEnd  ) >= 0);
 
+            //std::cout << mi_L2iter.sw_beg->wpos << ", " << firstSuperWindowRangeStart->wpos << std::endl;
+            //std::cout << mi_L2iter.sw_end->wpos << ", " << lastSuperWindowRangeEnd->wpos << std::endl;
             //Check if the previous first minimizer is out of current range
-            if (prev_beg_iter != mi_L2iter.sw_beg)
+            if (prev_beg_iter != mi_L2iter.sw_beg) {
+              //std::cout << "Beg out range\n";
               slidemap.delete_ref(prev_beg_iter);
+            }
 
             //Check if we have new minimizer in the current range
-            if (prev_end_iter != mi_L2iter.sw_end)
+            if (prev_end_iter != mi_L2iter.sw_end) {
+              //std::cout << "Beg out range\n";
               slidemap.insert_ref(prev_end_iter);
+            }
           
             //Is this sliding window the best we have so far?
             if (slidemap.sharedSketchElements > l2_out.sharedSketchSize)
             {
+              //std::cout << "Best?\n";
               l2_out.sharedSketchSize = slidemap.sharedSketchElements;
               l2_out.optimalStart = mi_L2iter.sw_beg;
               l2_out.optimalEnd = mi_L2iter.sw_end;
@@ -607,6 +617,7 @@ namespace skch
             }
             else if(slidemap.sharedSketchElements == l2_out.sharedSketchSize)
             {
+              //std::cout << "Tied?\n";
               //Still save the position
               lastOptimalPos = mi_L2iter.sw_beg->wpos; 
             }
