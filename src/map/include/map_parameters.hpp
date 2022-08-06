@@ -22,6 +22,7 @@ namespace skch
                                                       //for noSplit, it represents minimum read length to map
                                                       
     int alphabetSize;                                 //alphabet size
+    int sketchSize;
     uint64_t referenceSize;                           //Approximate reference size
     float percentageIdentity;                         //user defined threshold for good similarity
     int filterMode;                                   //filtering mode in mashmap

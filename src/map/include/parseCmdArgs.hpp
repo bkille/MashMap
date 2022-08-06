@@ -58,6 +58,9 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
     cmd.defineOption("perc_identity", "threshold for identity [default : 85]", ArgvParser::OptionRequiresValue);
     cmd.defineOptionAlternative("perc_identity","pi");
 
+    cmd.defineOption("sketchSize", "Size of sketch", ArgvParser::OptionRequiresValue);
+    cmd.defineOptionAlternative("sketchSize","ss");
+
     cmd.defineOption("threads", "count of threads for parallel execution [default : 1]", ArgvParser::OptionRequiresValue);
     cmd.defineOptionAlternative("threads","t");
 
@@ -143,6 +146,7 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
     std::cout << "Kmer size = " << parameters.kmerSize << std::endl;
     std::cout << "Window size = " << parameters.windowSize << std::endl;
     std::cout << "Segment length = " << parameters.segLength << (parameters.split ? " (read split allowed)": " (read split disabled)") << std::endl;
+    std::cout << "Sketch size = " << parameters.sketchSize << std::endl;
     std::cout << "Alphabet = " << (parameters.alphabetSize == 4 ? "DNA" : "AA") << std::endl;
     std::cout << "Percentage identity threshold = " << parameters.percentageIdentity << "\%" << std::endl;
     std::cout << "Mapping output file = " << parameters.outFileName << std::endl;
@@ -291,6 +295,15 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
     else
       parameters.segLength = 5000;
 
+    if(cmd.foundOption("sketchSize"))
+    {
+      str << cmd.optionValue("sketchSize");
+      str >> parameters.sketchSize;
+      str.clear();
+    }
+    else
+      parameters.sketchSize = parameters.segLength / 50;
+
     if(cmd.foundOption("perc_identity"))
     {
       str << cmd.optionValue("perc_identity");
@@ -324,6 +337,8 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
         parameters.kmerSize, parameters.alphabetSize,
         parameters.percentageIdentity,
         parameters.segLength, parameters.referenceSize);
+
+    parameters.windowSize = int(parameters.segLength - 200);
 
     if(cmd.foundOption("output"))
     {

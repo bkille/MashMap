@@ -192,7 +192,15 @@ namespace skch
         MI_Type* thread_output = new MI_Type();
 
         //Compute minimizers in reference sequence
-        skch::CommonFunc::addMinimizers(*thread_output, &(input->seq[0u]), input->len, param.kmerSize, param.windowSize, param.alphabetSize, input->seqCounter);
+        skch::CommonFunc::addMashimizers(
+                *thread_output, 
+                &(input->seq[0u]), 
+                input->len, 
+                param.kmerSize, 
+                param.windowSize, 
+                param.alphabetSize, 
+                param.sketchSize,
+                input->seqCounter);
 
         return thread_output;
       }

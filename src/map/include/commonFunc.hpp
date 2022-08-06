@@ -6,11 +6,14 @@
 #ifndef COMMON_FUNC_HPP 
 #define COMMON_FUNC_HPP
 
+#include <utility>
 #include <vector>
 #include <algorithm>
 #include <deque>
 #include <cmath>
 #include <fstream>
+#include <map>
+#include <set>
 
 //Own includes
 #include "map/include/map_parameters.hpp"
@@ -18,6 +21,7 @@
 //External includes
 #include "common/murmur3.h"
 #include "common/prettyprint.hpp"
+#include "map/include/base_types.hpp"
 
 namespace skch
 {
@@ -27,6 +31,13 @@ namespace skch
    */
   namespace CommonFunc
   {
+
+    template <typename I>
+    struct Pivot {
+        I p;
+        int64_t rank;
+    };
+
     //seed for murmerhash
     const int seed = 42;
 
@@ -83,6 +94,202 @@ namespace skch
 
       return hash;
     }
+
+    
+    /**
+     * @brief       Compute winnowed mashimizers from a given sequence and add to the index
+     * @param[out]  mashimizerIndex  table storing mashimizers and their position as we compute them
+     * @param[in]   seq             pointer to input sequence
+     * @param[in]   len             length of input sequence
+     * @param[in]   kmerSize
+     * @param[in]   windowSize
+     * @param[in]   s               sketch size. 
+     * @param[in]   seqCounter      current sequence number, used while saving the position of minimizer
+     */
+    template <typename T>
+      inline void addMashimizers(std::vector<T> &mashimizerIndex, 
+          char* seq, offset_t len,
+          int kmerSize, 
+          int windowSize,
+          int alphabetSize,
+          int sketchSize,
+          seqno_t seqCounter)
+      {
+        /**
+         * Double-ended queue (saves minimum at front end)
+         * Saves pair of the minimizer and the position of hashed kmer in the sequence
+         * Position of kmer is required to discard kmers that fall out of current window
+         */
+
+
+        std::deque< std::pair<MinimizerInfo, offset_t> > Q;
+        using windowMap_t = std::map<hash_t, std::deque<MinimizerInfo>>;
+        windowMap_t sortedWindow;
+        Pivot<typename windowMap_t::iterator>  piv = {sortedWindow.begin(), 0};
+        
+
+
+        makeUpperCase(seq, len);
+
+        //Compute reverse complement of seq
+        char* seqRev = new char[len];
+
+        if(alphabetSize == 4) //not protein
+          CommonFunc::reverseComplement(seq, seqRev, len);
+
+        for(offset_t i = 0; i < len - kmerSize + 1; i++)
+        {
+          //The serial number of current sliding window
+          //First valid window appears when i = windowSize - 1
+          offset_t currentWindowId = i - windowSize + 1;
+
+          if (currentWindowId == 0) {
+            uint64_t rank = 1;
+            auto iter = sortedWindow.begin();
+            while (iter != sortedWindow.end() && rank <= sketchSize) {
+              for (auto& mi : iter->second) {
+                  mi.wpos = currentWindowId; 
+              }
+              std::advance(iter, 1);
+              rank += 1;
+            }
+          }
+
+          //Hash kmers
+          hash_t hashFwd = CommonFunc::getHash(seq + i, kmerSize); 
+          hash_t hashBwd;
+
+          if(alphabetSize == 4)
+            hashBwd = CommonFunc::getHash(seqRev + len - i - kmerSize, kmerSize);
+          else  //proteins
+            hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
+
+          //Consider non-symmetric kmers only
+          if(hashBwd != hashFwd)
+          {
+            //Take minimum value of kmer and its reverse complement
+            hash_t currentKmer = std::min(hashFwd, hashBwd);
+
+            //Check the strand of this minimizer hash value
+            auto currentStrand = hashFwd < hashBwd ? strnd::FWD : strnd::REV;
+
+            //If front minimum is not in the current window, remove it
+            if (!Q.empty() && Q.front().second <=  i - windowSize) {
+              const hash_t leaving_hash = Q.front().first.hash;
+              if (sortedWindow[leaving_hash].front().wpos != -1) {
+                mashimizerIndex.push_back(sortedWindow[leaving_hash].front());
+              }
+              sortedWindow[leaving_hash].pop_front();
+              if (sortedWindow[leaving_hash].size() == 0) {
+                if (leaving_hash == piv.p->first) {
+                  std::advance(piv.p, -1);
+                  piv.rank -= 1;
+                }
+                else if (leaving_hash < piv.p->first || sortedWindow.size() < sketchSize) {
+                  piv.rank -= 1;
+                }
+                sortedWindow.erase(leaving_hash);
+              }
+              Q.pop_front();
+            }
+
+            // Add current hash to window
+            //std::cout << "Adding " << currentKmer << std::endl;
+            if (sortedWindow.size() < sketchSize*2+20 || currentKmer <= std::prev(sortedWindow.end())->first) {
+                auto mi = MinimizerInfo{currentKmer, seqCounter, -1, currentStrand};
+                Q.push_back(std::make_pair(mi, i)); 
+                sortedWindow[currentKmer].push_back(mi);
+            }
+
+
+            //Select the minimizer from Q and put into index
+            if(currentWindowId >= 0)
+            {
+              bool insert_mi = mashimizerIndex.empty();
+              // There are two cases in which we add a new mashimizer to the index
+              // (1) currentKmer <= piv.p->first || sortedWindow.size() <= sketchSize && currentKmer is new
+              // (2) We just removed an element from the sketch, and therfore shifted a new element
+              // in. 
+              if (sortedWindow.size() <= sketchSize || currentKmer < piv.p->first)
+              {
+                // New kmer in sketch
+                if (sortedWindow[currentKmer].size() == 1) {
+                  if (sortedWindow.size() <= sketchSize) {
+                      //std::cout << "Case 1 (a)\n";
+                      piv.p = std::prev(sortedWindow.end());
+                      piv.rank = sortedWindow.size();
+                  } else { 
+                      if (piv.rank == sketchSize)
+                        std::advance(piv.p, -1);
+                      piv.rank = sketchSize;
+                  }
+                }
+                //Update the window position in this mashimizer
+                for (auto& mi: sortedWindow[currentKmer]) {
+                    mi.wpos = mi.wpos >= 0 ? mi.wpos : currentWindowId;     
+                }
+              } 
+              if (sortedWindow.size() >= sketchSize && piv.rank == sketchSize - 1) {
+                std::advance(piv.p, 1);
+                piv.rank += 1;
+                for (auto& mi: piv.p->second) {
+                    mi.wpos = mi.wpos >= 0 ? mi.wpos : currentWindowId;     
+                }
+              } else {}
+            } else {
+                if (sortedWindow[currentKmer].size() == 1) {
+                    // Seeing kmer for the first time
+                    if (sortedWindow.size() <= sketchSize) {
+                        piv.p = std::prev(sortedWindow.end());
+                        piv.rank = sortedWindow.size();
+                    } else if (currentKmer < piv.p->first) {
+                        std::advance(piv.p, -1);
+                    }
+                }
+            }
+          }
+          if (i % 10000000 == 0 and i != 0) {
+              std::cout << i << std::endl;
+              std::cout << piv.rank << ", " << sortedWindow.size() << ", " << i << std::endl;
+              if ((sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0) != piv.rank) {
+                  std::cout << "Actual rank = " 
+                      << (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
+                      << "\tAnnotated rank = " << piv.rank << std::endl;
+                  exit(1);
+              }
+              if (piv.rank != std::min<uint64_t>(sortedWindow.size(), sketchSize) ){
+                  std::cout << "Actual rank = " 
+                      << (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
+                      << "\tAnnotated rank = " << piv.rank << std::endl;
+                  exit(1);
+              }
+          }
+        }
+
+        uint64_t rank = 1;
+        auto iter = sortedWindow.begin();
+        while (iter != sortedWindow.end() && rank <= sketchSize) {
+          if (iter->second.front().wpos != -1) {
+            mashimizerIndex.push_back(iter->second.front());
+          }
+          std::advance(iter, 1);
+          rank += 1;
+        }
+
+#ifdef DEBUG
+        std::cout << "INFO, skch::CommonFunc::addMinimizers, inserted minimizers for sequence id = " << seqCounter << "\n";
+#endif
+        //std::cout << "BEFORE " << mashimizerIndex.size() << "\n";
+        std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {return l.wpos < r.wpos;});
+        mashimizerIndex.erase(std::unique(mashimizerIndex.begin(), mashimizerIndex.end(), 
+                    [](auto& l, auto& r) {
+                        return (l.wpos == r.wpos) && (l.hash == r.hash);
+            }),
+            mashimizerIndex.end());
+        //std::cout << "AFTER " << mashimizerIndex.size() << "\n";
+
+        delete [] seqRev;
+      }
 
     /**
      * @brief       compute winnowed minimizers from a given sequence and add to the index
