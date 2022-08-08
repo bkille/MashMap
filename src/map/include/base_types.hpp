@@ -55,6 +55,14 @@ namespace skch
 
   };
 
+  struct MashimizerInfo : public MinimizerInfo 
+  {
+    offset_t wpos_end;
+    MashimizerInfo() {};
+    MashimizerInfo(hash_t hash_, seqno_t seqId_, offset_t wpos_, offset_t wpos_end_, strand_t strand_)
+       : MinimizerInfo{hash_, seqId_, wpos_, strand_}, wpos_end(wpos_end_) {};
+  };
+
   //Type for map value type used for
   //L1 stage lookup index
   struct MinimizerMetaData
