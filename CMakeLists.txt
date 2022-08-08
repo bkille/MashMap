@@ -1,4 +1,4 @@
-set(DEBUG_FLAGS -O0 -g -fno-omit-frame-pointer -pg -fsanitize=address -DDEBUG)
+set(DEBUG_FLAGS -O2 -g -fno-omit-frame-pointer -pg -DDEBUG)
 set(PROD_FLAGS -O2 -g -DNDEBUG)
 # specify the C++ standard
 cmake_minimum_required(VERSION 3.14)
@@ -10,7 +10,7 @@ project(MashMap VERSION 3.0)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # set build type
-set(CMAKE_BUILD_TYPE RelWithDebInfo)
+#set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 # set CXX standard
 # Things seem to be faster in cxx 20, and there is also std::shift_* 
@@ -27,7 +27,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 
 # specify global compiler flags
-add_compile_options(-march=native -Wfatal-errors -DDEBUG)
+add_compile_options(-march=native -Wfatal-errors)
 
 
 # Add targets
@@ -61,7 +61,7 @@ target_compile_options(mashmap-debug PUBLIC ${DEBUG_FLAGS})
 
 # specify debugging libraries
 include_directories(src/)
-target_link_libraries(mashmap-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread -fsanitize=address)
+target_link_libraries(mashmap-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread)
 
 install(TARGETS mashmap-debug DESTINATION .)
 
