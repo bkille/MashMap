@@ -370,7 +370,7 @@ namespace skch
 
           ///1. Compute the minimizers
 
-          CommonFunc::addMashimizers(Q.minimizerTableQuery, Q.seq, Q.len, param.kmerSize, param.windowSize, param.alphabetSize, param.sketchSize, Q.seqCounter);
+          CommonFunc::sketchSequence(Q.minimizerTableQuery, Q.seq, Q.len, param.kmerSize, param.alphabetSize, param.sketchSize, Q.seqCounter);
 
 #ifdef DEBUG
           std::cout << "INFO, skch::Map:doL1Mapping, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << " " << Q.len << "\n";
@@ -546,6 +546,11 @@ namespace skch
             L1_candidateLocus_t &candidateLocus, 
             L2_mapLocus_t &l2_out)
         {
+#ifdef DEBUG
+          std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqCounter << std::endl; 
+          std::cout << "seqId: " << candidateLocus.seqId << ", startpos: " << candidateLocus.rangeStartPos << std::endl;
+          std::cout << "seqId: " << candidateLocus.seqId << ", endpos: " << candidateLocus.rangeEndPos << std::endl;
+#endif
           //Look up L1 candidate's begin in the index
           MIIter_t firstSuperWindowRangeStart = this->refSketch.searchIndex(candidateLocus.seqId, 
               candidateLocus.rangeStartPos);
@@ -556,11 +561,11 @@ namespace skch
 
           //std::cout << "New L2 check\n";
           //Count of minimizer windows in a super-window
-          offset_t countMinimizerWindows = Q.len - (param.windowSize-1) - (param.kmerSize-1); 
+          //offset_t countMinimizerWindows = Q.len - (param.windowSize-1) - (param.kmerSize-1); 
 
           //Look up the end of the first L2 super-window in the index
           MIIter_t firstSuperWindowRangeEnd = this->refSketch.searchIndex(candidateLocus.seqId, 
-              firstSuperWindowRangeStart->wpos + countMinimizerWindows);
+              firstSuperWindowRangeStart->wpos_end);
 
           //Look up L1 candidate's end in the index
           MIIter_t lastSuperWindowRangeEnd = this->refSketch.searchIndex(candidateLocus.seqId, 
@@ -572,7 +577,7 @@ namespace skch
 
           //Initialize iterator over minimizerIndex
           MIIteratorL2 mi_L2iter( firstSuperWindowRangeStart, firstSuperWindowRangeEnd,
-              countMinimizerWindows);
+              firstSuperWindowRangeStart->wpos_end - firstSuperWindowRangeStart->wpos);
 
           //Insert all the minimizers in the first 'super-window'
           //  [ mi_L2iter.sw_beg, mi_L2iter.sw_end )
@@ -586,6 +591,8 @@ namespace skch
           //while ( std::distance(mi_L2iter.sw_end, lastSuperWindowRangeEnd) >= 0)
           while ( std::distance(mi_L2iter.sw_end, lastSuperWindowRangeEnd) >= 0)
           {
+            //if (slidemap.sharedSketchElements > 0) 
+                //std::cout << slidemap.sharedSketchElements << std::endl;
             assert( std::distance(mi_L2iter.sw_beg, firstSuperWindowRangeStart) <= 0);
             assert( std::distance(mi_L2iter.sw_end, lastSuperWindowRangeEnd  ) >= 0);
 
@@ -648,34 +655,34 @@ namespace skch
        * @param[in]   refStartPos               offset on reference sequence
        * return                                 jaccard similarity
        */
-      template <typename Q_Info>
-        double computeJaccardSinglePos(Q_Info &Q, seqno_t seqId, offset_t refStartPos)
-        {
-          //Look up L1 candidate's begin in the index
-          MIIter_t superWindowRangeStart = this->refSketch.searchIndex(seqId, refStartPos);
+      //template <typename Q_Info>
+        //double computeJaccardSinglePos(Q_Info &Q, seqno_t seqId, offset_t refStartPos)
+        //{
+          ////Look up L1 candidate's begin in the index
+          //MIIter_t superWindowRangeStart = this->refSketch.searchIndex(seqId, refStartPos);
 
-          if (Q.sketchSize == 0)
-            return 0;
+          //if (Q.sketchSize == 0)
+            //return 0;
           
-          //If iterator points to index end or a different reference sequence, return zero 
-          if ( this->refSketch.isMinimizerIndexEnd(superWindowRangeStart) || superWindowRangeStart->seqId != seqId)
-            return 0;
+          ////If iterator points to index end or a different reference sequence, return zero 
+          //if ( this->refSketch.isMinimizerIndexEnd(superWindowRangeStart) || superWindowRangeStart->seqId != seqId)
+            //return 0;
 
-          //Count of minimizer windows in a super-window
-          offset_t countMinimizerWindows = Q.len - (param.windowSize-1) - (param.kmerSize-1); 
+          ////Count of minimizer windows in a super-window
+          //offset_t countMinimizerWindows = Q.len - (param.windowSize-1) - (param.kmerSize-1); 
 
-          //Look up the end of the first L2 super-window in the index
-          MIIter_t superWindowRangeEnd = this->refSketch.searchIndex(seqId, 
-              superWindowRangeStart->wpos + countMinimizerWindows);
+          ////Look up the end of the first L2 super-window in the index
+          //MIIter_t superWindowRangeEnd = this->refSketch.searchIndex(seqId, 
+              //superWindowRangeStart->wpos + countMinimizerWindows);
 
-          //Define std::map and let it contain only the query minimizers
-          SlideMapper<Q_Info> slidemap(Q);
+          ////Define std::map and let it contain only the query minimizers
+          //SlideMapper<Q_Info> slidemap(Q);
 
-          //Insert all the minimizers in the first super-window
-          slidemap.insert_ref(superWindowRangeStart, superWindowRangeEnd);
+          ////Insert all the minimizers in the first super-window
+          //slidemap.insert_ref(superWindowRangeStart, superWindowRangeEnd);
 
-          return slidemap.sharedSketchElements * 1.0 / Q.sketchSize;
-        }
+          //return slidemap.sharedSketchElements * 1.0 / Q.sketchSize;
+        //}
 
       /**
        * @brief                       Merge the consecutive fragment mappings reported in each query 

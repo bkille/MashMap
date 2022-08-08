@@ -60,7 +60,7 @@ namespace skch
 
       public:
 
-      typedef std::vector< MinimizerInfo > MI_Type;
+      typedef std::vector< MashimizerInfo > MI_Type;
       using MIIter_t = MI_Type::const_iterator;
 
       //Keep sequence length, name that appear in the sequence (for printing the mappings later)
@@ -91,7 +91,7 @@ namespace skch
        * Note : position is local within each contig
        * Hashes saved here are non-unique, ordered as they appear in the reference
        */
-      MI_Type minimizerIndex;
+      MI_Type mashimizerIndex;
 
       //Frequency histogram of minimizers
       //[... ,x -> y, ...] implies y number of minimizers occur x times
@@ -177,7 +177,7 @@ namespace skch
         while ( threadPool.running() )
           this->buildHandleThreadOutput(threadPool.popOutputWhenAvailable());
 
-        std::cout << "INFO, skch::Sketch::build, minimizers picked from reference = " << minimizerIndex.size() << std::endl;
+        std::cout << "INFO, skch::Sketch::build, minimizers picked from reference = " << mashimizerIndex.size() << std::endl;
 
       }
 
@@ -211,7 +211,7 @@ namespace skch
        */
       void buildHandleThreadOutput(MI_Type* output)
       {
-        this->minimizerIndex.insert(this->minimizerIndex.end(), output->begin(), output->end());
+        this->mashimizerIndex.insert(this->mashimizerIndex.end(), output->begin(), output->end());
         delete output;
       }
 
@@ -223,7 +223,7 @@ namespace skch
         //Parse all the minimizers and push into the map
         minimizerPosLookupIndex.set_empty_key(0);
 
-        for(auto &e : minimizerIndex)
+        for(auto &e : mashimizerIndex)
         {
           // [hash value -> info about minimizer]
           minimizerPosLookupIndex[e.hash].push_back( 
@@ -298,7 +298,7 @@ namespace skch
          * std::lower_bound --  Returns an iterator pointing to the first element in the range
          *                      that is not less than (i.e. greater or equal to) value.
          */
-        MIIter_t iter = std::lower_bound(this->minimizerIndex.begin(), this->minimizerIndex.end(), searchPosInfo, cmp);
+        MIIter_t iter = std::lower_bound(this->mashimizerIndex.begin(), this->mashimizerIndex.end(), searchPosInfo, cmp);
 
         return iter;
       }
@@ -310,15 +310,15 @@ namespace skch
        */
       bool isMinimizerIndexEnd(const MIIter_t &it) const
       {
-        return it == this->minimizerIndex.end();
+        return it == this->mashimizerIndex.end();
       }
 
       /**
-       * @brief     Return end iterator on minimizerIndex
+       * @brief     Return end iterator on mashimizerIndex
        */
       MIIter_t getMinimizerIndexEnd() const
       {
-        return this->minimizerIndex.end();
+        return this->mashimizerIndex.end();
       }
 
       int getFreqThreshold() const
@@ -329,7 +329,7 @@ namespace skch
       private:
 
       /**
-       * @brief     functor for comparing minimizers by their position in minimizerIndex
+       * @brief     functor for comparing minimizers by their position in mashimizerIndex
        * @details   used for locating minimizers with the required positional information
        */
       struct compareMinimizersByPos

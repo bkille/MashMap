@@ -35,6 +35,7 @@ namespace skch
           strand_t strandQ;
           offset_t wposR;                   //wpos and strand of minimizers in the reference
           strand_t strandR;
+          unsigned int freq;
         };
 
         //Container type for saving read sketches during L1 and L2 both
@@ -120,7 +121,7 @@ namespace skch
           //Insert query sketch elements to map
           for(auto it = Q.minimizerTableQuery.begin(); it != uniqEndIter; it++)
           {
-            this->slidingWindowMinhashes.emplace_hint(slidingWindowMinhashes.end(), it->hash, slidingMapContainerValueType{it->wpos, it->strand, NAPos, 0});
+            this->slidingWindowMinhashes.emplace_hint(slidingWindowMinhashes.end(), it->hash, slidingMapContainerValueType{it->wpos, it->strand, NAPos, 0, 0});
           }
 
           //Point pivot to last element in the map
@@ -144,7 +145,7 @@ namespace skch
           //if hash doesn't exist in the map, add to it
           if(slidingWindowMinhashes.find(hashVal) == slidingWindowMinhashes.end())
           {
-            slidingWindowMinhashes[hashVal] = slidingMapContainerValueType{this->NAPos, 0, m->wpos, m->strand};   //add the hash to window
+            slidingWindowMinhashes[hashVal] = slidingMapContainerValueType{this->NAPos, 0, m->wpos, m->strand, 1};   //add the hash to window
             status = IN::UNIQ;
           }
           else
@@ -155,6 +156,7 @@ namespace skch
             //if hash already exists in the map, just revise it
             slidingWindowMinhashes[hashVal].wposR = m->wpos;
             slidingWindowMinhashes[hashVal].strandR = m->strand;
+            slidingWindowMinhashes[hashVal].freq += 1;
           }
 
           updateCountersAfterInsert(status, m);
@@ -175,9 +177,13 @@ namespace skch
           
           assert(this->slidingWindowMinhashes.find(hashVal) != this->slidingWindowMinhashes.end());
 
+          this->slidingWindowMinhashes[hashVal].freq -= 1;
+          if (this->slidingWindowMinhashes[hashVal].freq > 0) {
+              return;
+          }
+
           //This hashVal may exist with different wpos from 
           //reference, do nothing in that case
-          
           if(this->slidingWindowMinhashes[hashVal].wposR == m->wpos)
           {
             if(this->slidingWindowMinhashes[hashVal].wposQ == NAPos)
@@ -193,7 +199,9 @@ namespace skch
                 pivotDeleteCase = true;
               }
 
-              this->slidingWindowMinhashes.erase(hashVal);              //Remove the entry from the map
+              this->slidingWindowMinhashes[hashVal].freq -= 1;
+              if (this->slidingWindowMinhashes[hashVal].freq == 0)
+                  this->slidingWindowMinhashes.erase(hashVal);              //Remove the entry from the map
               status = OUT::DEL; 
             }
             else
