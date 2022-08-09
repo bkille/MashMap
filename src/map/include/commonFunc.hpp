@@ -109,7 +109,8 @@ namespace skch
     template <typename T>
       inline void sketchSequence(
           std::vector<T> &mashimizerIndex, 
-          char* seq, offset_t len,
+          char* seq, 
+          offset_t len,
           int kmerSize, 
           int alphabetSize,
           int sketchSize,
@@ -240,7 +241,7 @@ namespace skch
               // If the hash that is getting popped off is still in the window and it is now leaving the window 
               // wpos != -1 and wpos_end == -1 --> still in window
               if (sortedWindow[leaving_hash].first.wpos != -1 and sortedWindow[leaving_hash].first.wpos_end == -1 && sortedWindow[leaving_hash].second == 1) {
-                sortedWindow[leaving_hash].first.wpos_end = i - windowSize + 1;
+                sortedWindow[leaving_hash].first.wpos_end = currentWindowId - 1;
                 mashimizerIndex.push_back(sortedWindow[leaving_hash].first);
               }
 
@@ -262,7 +263,6 @@ namespace skch
             }
 
             // Add current hash to window
-            //std::cout << "Adding " << currentKmer << std::endl;
             if (sortedWindow.size() < sketchSize*2+20 || currentKmer <= std::prev(sortedWindow.end())->first) {
                 Q.push_back(std::make_pair(currentKmer, i)); 
                 if (sortedWindow[currentKmer].second == 0) {
@@ -286,7 +286,6 @@ namespace skch
                 // New kmer in sketch
                 if (sortedWindow[currentKmer].second == 1) {
                   if (sortedWindow.size() <= sketchSize) {
-                      //std::cout << "Case 1 (a)\n";
                       piv.p = std::prev(sortedWindow.end());
                       piv.rank = sortedWindow.size();
                   } else { 
@@ -308,9 +307,9 @@ namespace skch
               } else {}
                 // Check if we just removed a hash from the sketch
               if (sortedWindow.size() > sketchSize) {
-                auto border_mi_it = std::next(piv.p)->second.first;
+                auto& border_mi_it = std::next(piv.p)->second.first;
                 if (border_mi_it.wpos != -1 && border_mi_it.wpos_end == -1) {
-                  border_mi_it.wpos_end = i - windowSize + 1;
+                  border_mi_it.wpos_end = currentWindowId - 1;
                   mashimizerIndex.push_back(
                           MashimizerInfo{border_mi_it.hash, border_mi_it.seqId, border_mi_it.wpos, border_mi_it.wpos_end, border_mi_it.strand});
                   // resest mi info
@@ -331,22 +330,24 @@ namespace skch
             }
 
           }
+#ifdef DEBUG
           if (i % 10000000 == 0 and i != 0) {
               std::cout << i << std::endl;
               std::cout << piv.rank << ", " << sortedWindow.size() << ", " << i << std::endl;
-              if ((sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0) != piv.rank) {
-                  std::cout << "Actual rank = " 
-                      << (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
-                      << "\tAnnotated rank = " << piv.rank << std::endl;
-                  exit(1);
-              }
-              if (piv.rank != std::min<uint64_t>(sortedWindow.size(), sketchSize) ){
-                  std::cout << "Actual rank = " 
-                      << (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
-                      << "\tAnnotated rank = " << piv.rank << std::endl;
-                  exit(1);
-              }
           }
+          if ((sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0) != piv.rank) {
+              std::cout << "Actual rank = " 
+                  << (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
+                  << "\tAnnotated rank = " << piv.rank << std::endl;
+              exit(1);
+          }
+          if (piv.rank != std::min<uint64_t>(sortedWindow.size(), sketchSize) ){
+              std::cout << "Actual rank = " 
+                  << (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
+                  << "\tAnnotated rank = " << piv.rank << std::endl;
+              exit(1);
+          }
+#endif
         }
 
         uint64_t rank = 1;
@@ -360,19 +361,31 @@ namespace skch
           rank += 1;
         }
 
-#ifdef DEBUG
-        std::cout << "INFO, skch::CommonFunc::addMinimizers, inserted minimizers for sequence id = " << seqCounter << "\n";
-        std::cout << "INFO, skch::CommonFunc::addMinimizers, length of sequence  = " << len << "\n";
-        assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos >= 0;}));
-        assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos_end >= 0;}));
-#endif
-        //std::cout << "BEFORE " << mashimizerIndex.size() << "\n";
+        // TODO is this necessary?
         std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {return l.wpos < r.wpos;});
         mashimizerIndex.erase(std::unique(mashimizerIndex.begin(), mashimizerIndex.end(), 
                     [](auto& l, auto& r) {
                         return (l.wpos == r.wpos) && (l.hash == r.hash);
             }),
             mashimizerIndex.end());
+#ifdef DEBUG
+        std::cout << "INFO, skch::CommonFunc::addMinimizers, inserted minimizers for sequence id = " << seqCounter << "\n";
+        std::cout << "INFO, skch::CommonFunc::addMinimizers, length of sequence  = " << len << "\n";
+        assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos >= 0;}));
+        assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos_end >= 0;}));
+        std::vector<MashimizerInfo> endpos_heap;
+        auto heap_cmp = [](auto& l, auto& r) {return l.wpos_end >= r.wpos_end;};
+        for (auto& mi : mashimizerIndex) {
+          while (!endpos_heap.empty() && endpos_heap.front().wpos_end < mi.wpos) {
+            std::pop_heap(endpos_heap.begin(), endpos_heap.end(), heap_cmp); 
+            endpos_heap.pop_back();
+          }
+          endpos_heap.push_back(mi);
+          std::push_heap(endpos_heap.begin(), endpos_heap.end(), heap_cmp);
+          assert(endpos_heap.size() <= sketchSize);
+        }
+#endif
+        //std::cout << "BEFORE " << mashimizerIndex.size() << "\n";
         //std::cout << "AFTER " << mashimizerIndex.size() << "\n";
 
         delete [] seqRev;
