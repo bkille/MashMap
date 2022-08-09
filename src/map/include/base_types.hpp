@@ -78,7 +78,7 @@ namespace skch
   };
 
   typedef hash_t MinimizerMapKeyType;
-  typedef std::vector<MinimizerMetaData> MinimizerMapValueType;
+  typedef std::vector<MashimizerInfo> MinimizerMapValueType;
 
   //Metadata recording for contigs in the reference DB
   struct ContigInfo
@@ -186,6 +186,8 @@ namespace skch
       offset_t len;                       //length of this query sequence
       int sketchSize;                     //sketch size
       MinimizerVec minimizerTableQuery;   //Vector of minimizers in the query 
+      MinimizerVec seedHits;              //Vector of seed hits in the reference
+
     };
 }
 

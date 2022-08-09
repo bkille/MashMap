@@ -199,9 +199,7 @@ namespace skch
                 pivotDeleteCase = true;
               }
 
-              this->slidingWindowMinhashes[hashVal].freq -= 1;
-              if (this->slidingWindowMinhashes[hashVal].freq == 0)
-                  this->slidingWindowMinhashes.erase(hashVal);              //Remove the entry from the map
+              this->slidingWindowMinhashes.erase(hashVal);              //Remove the entry from the map
               status = OUT::DEL; 
             }
             else

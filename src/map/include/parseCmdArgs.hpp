@@ -338,7 +338,7 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
         parameters.percentageIdentity,
         parameters.segLength, parameters.referenceSize);
 
-    parameters.windowSize = int(parameters.segLength - 200);
+    parameters.windowSize = int(parameters.segLength);
 
     if(cmd.foundOption("output"))
     {
