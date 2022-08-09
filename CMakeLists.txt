@@ -1,4 +1,4 @@
-set(DEBUG_FLAGS -O2 -g -fno-omit-frame-pointer -pg -DDEBUG)
+set(DEBUG_FLAGS -O2 -g -fno-omit-frame-pointer -pg -DDEBUG -fsanitize=address)
 set(PROD_FLAGS -O2 -g -DNDEBUG)
 # specify the C++ standard
 cmake_minimum_required(VERSION 3.14)
@@ -61,7 +61,7 @@ target_compile_options(mashmap-debug PUBLIC ${DEBUG_FLAGS})
 
 # specify debugging libraries
 include_directories(src/)
-target_link_libraries(mashmap-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread)
+target_link_libraries(mashmap-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread -fsanitize=address)
 
 install(TARGETS mashmap-debug DESTINATION .)
 
