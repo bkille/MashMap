@@ -27,7 +27,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 
 # specify global compiler flags
-add_compile_options(-march=native -Wfatal-errors)
+add_compile_options(-Wfatal-errors)
 
 
 # Add targets
@@ -40,17 +40,22 @@ file(GLOB COMMON_SOURCES "src/common/" "*.cpp")
 #add_executable(mashmap ${MAP_SOURCES})
 add_executable(mashmap-debug "src/map/mash_map.cpp")
 add_executable(mashmap "src/map/mash_map.cpp")
+add_executable(mashmap-align "src/align/align.cpp")
+add_executable(mashmap-align-debug "src/align/align.cpp")
 
 ################
 # Benchmarking #
 ################
 target_compile_options(mashmap PUBLIC ${PROD_FLAGS})
+target_compile_options(mashmap-align PUBLIC ${PROD_FLAGS})
 
 # specify debugging libraries
 include_directories(src/)
 target_link_libraries(mashmap PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread)
+target_link_libraries(mashmap-align PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread)
 
 install(TARGETS mashmap DESTINATION .)
+install(TARGETS mashmap-align DESTINATION .)
 
 
 ###########
@@ -58,12 +63,15 @@ install(TARGETS mashmap DESTINATION .)
 ###########
 # specify debugging flags
 target_compile_options(mashmap-debug PUBLIC ${DEBUG_FLAGS})
+target_compile_options(mashmap-align-debug PUBLIC ${DEBUG_FLAGS})
 
 # specify debugging libraries
 include_directories(src/)
 target_link_libraries(mashmap-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread -fsanitize=address)
+target_link_libraries(mashmap-align-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread -fsanitize=address)
 
 install(TARGETS mashmap-debug DESTINATION .)
+install(TARGETS mashmap-align-debug DESTINATION .)
 
 
 
