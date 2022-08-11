@@ -92,7 +92,6 @@ namespace skch
        * Hashes saved here are non-unique, ordered as they appear in the reference
        */
       MI_Type mashimizerIndex;
-      MI_Type mashimizerIndex_end_sorted;
 
       //Frequency histogram of minimizers
       //[... ,x -> y, ...] implies y number of minimizers occur x times
@@ -178,8 +177,6 @@ namespace skch
         while ( threadPool.running() )
           this->buildHandleThreadOutput(threadPool.popOutputWhenAvailable());
 
-        //mashimizerIndex_end_sorted = mashimizerIndex;
-        //std::sort(mashimizerIndex_end_sorted.begin(), mashimizerIndex_end_sorted.end(), [](auto& l, auto & r) {return l.wpos_end < r.wpos_end;});
         std::cout << "INFO, skch::Sketch::build, minimizers picked from reference = " << mashimizerIndex.size() << std::endl;
 
       }
@@ -229,6 +226,12 @@ namespace skch
         for(auto &e : mashimizerIndex)
         {
           // [hash value -> info about minimizer]
+#ifdef DEBUG
+          if (!minimizerPosLookupIndex[e.hash].empty() && e.seqId == minimizerPosLookupIndex[e.hash].back().seqId) {
+              assert(minimizerPosLookupIndex[e.hash].back().wpos_end < e.wpos);
+          }
+              
+#endif
           minimizerPosLookupIndex[e.hash].push_back(e);
         }
 

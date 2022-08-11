@@ -379,10 +379,11 @@ namespace skch
           //std::sort(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::lessByHash);
 
           //note : unique preserves the original relative order of elements 
-          auto uniqEndIter = std::unique(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::equalityByHash);
+          //auto uniqEndIter = std::unique(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::equalityByHash);
 
           //This is the sketch size for estimating jaccard
-          Q.sketchSize = std::distance(Q.minimizerTableQuery.begin(), uniqEndIter);
+          //Q.sketchSize = std::distance(Q.minimizerTableQuery.begin(), uniqEndIter);
+          Q.sketchSize = param.sketchSize;
 
           //For invalid query (example : just NNNs), we may be left with 0 sketch size
           //Ignore the query in this case
@@ -391,7 +392,7 @@ namespace skch
 
           int totalMinimizersPicked = 0;
 
-          for(auto it = Q.minimizerTableQuery.begin(); it != uniqEndIter; it++)
+          for(auto it = Q.minimizerTableQuery.begin(); it != Q.minimizerTableQuery.end(); it++)
           {
             //Check if hash value exists in the reference lookup index
             auto seedFind = refSketch.minimizerPosLookupIndex.find(it->hash);
@@ -403,13 +404,41 @@ namespace skch
               //Save the positions (Ignore high frequency hits)
               if(hitPositionList.size() < refSketch.getFreqThreshold())
               {
+                // Let the strand of the hits denote wrt the reference. 
+                // i.e. if - query mashimizer hits a - ref mashimizer, we mark the strand as fwd. 
+                int it_strand_val = it->strand == skch::FWD ? 1 : -1;
+                std::for_each(hitPositionList.begin(), hitPositionList.end(), [it_strand_val](auto& mi) {
+                    mi.strand = (mi.strand == skch::FWD ? 1 : -1) * it_strand_val;
+                });
                 Q.seedHits.insert(Q.seedHits.end(), hitPositionList.begin(), hitPositionList.end());
               }
 
             }
           }
           //Sort all the hit positions
-          std::sort(Q.seedHits.begin(), Q.seedHits.end(), [](auto& l, auto& r) {return l.wpos < r.wpos;});
+          std::sort(Q.seedHits.begin(), Q.seedHits.end(), [](auto& l, auto& r) {
+              if (l.seqId != r.seqId) return l.seqId < r.seqId;
+              else return l.wpos < r.wpos; 
+          });
+
+#ifdef DEBUG
+          std::vector<MashimizerInfo> slidingWindow;
+          constexpr auto heap_cmp = [](const skch::MashimizerInfo& l, const skch::MashimizerInfo& r) {return l.wpos_end >= r.wpos_end;};
+          auto prev_seqId = 0;
+          for (auto& mi : Q.seedHits) {
+            if (mi.seqId != prev_seqId) {
+              slidingWindow.clear();
+            }
+            prev_seqId = mi.seqId;
+            while (!slidingWindow.empty() && slidingWindow.front().wpos_end < mi.wpos) {
+                std::pop_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
+                slidingWindow.pop_back();
+            }
+            slidingWindow.push_back(mi);
+            std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
+            assert(slidingWindow.size() <= Q.sketchSize);
+          }
+#endif
 
           int minimumHits = Stat::estimateMinimumHitsRelaxed(Q.sketchSize, param.kmerSize, param.percentageIdentity);
 
@@ -512,6 +541,7 @@ namespace skch
                 res.nucIdentityUpperBound = nucIdentityUpperBound;
                 res.sketchSize = Q.sketchSize;
                 res.conservedSketches = l2.sharedSketchSize;
+                res.strand = l2.strand; 
 
                 //Compute additional statistics -> strand, reference compexity
                 {
@@ -521,7 +551,7 @@ namespace skch
                   //slidemap.computeStatistics(strandVotes, uniqueRefHashes);
 
                   //res.strand = strandVotes > 0 ? strnd::FWD : strnd::REV;
-                  res.strand = strnd::FWD;
+                  //res.strand = strnd::FWD;
                 }
 
                 l2Mappings.push_back(res);
@@ -545,11 +575,11 @@ namespace skch
             L1_candidateLocus_t &candidateLocus, 
             L2_mapLocus_t &l2_out)
         {
-#ifdef DEBUG
-          std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqCounter << std::endl; 
-          std::cout << "seqId: " << candidateLocus.seqId << ", startpos: " << candidateLocus.rangeStartPos << std::endl;
-          std::cout << "seqId: " << candidateLocus.seqId << ", endpos: " << candidateLocus.rangeEndPos << std::endl;
-#endif
+//#ifdef DEBUG
+          //std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqCounter << std::endl; 
+          //std::cout << "seqId: " << candidateLocus.seqId << ", startpos: " << candidateLocus.rangeStartPos << std::endl;
+          //std::cout << "seqId: " << candidateLocus.seqId << ", endpos: " << candidateLocus.rangeEndPos << std::endl;
+//#endif
           // Look up L1 candidate's begin in the index. Any mashimizer that starts within Q.len
           // of the candidate start could be a mashimizer for the start window.
           MIIter_t firstSuperWindowRangeStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, 
@@ -566,7 +596,7 @@ namespace skch
           std::vector<skch::MashimizerInfo> slidingWindow;
 
           MIIter_t windowStart = firstSuperWindowRangeStart;
-          while(windowStart->wpos < candidateLocus.rangeStartPos) {
+          while(windowStart != Q.seedHits.end() && windowStart->wpos < candidateLocus.rangeStartPos && windowStart->seqId == candidateLocus.seqId) {
               if (windowStart->wpos_end >= candidateLocus.rangeStartPos) {
                   slidingWindow.push_back(*windowStart);
                   std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
@@ -579,23 +609,27 @@ namespace skch
           MIIter_t lastSuperWindowRangeStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, 
               candidateLocus.rangeEndPos);
 
-          int beginOptimalPos, lastOptimalPos;
+          int beginOptimalPos = 0;
+          int lastOptimalPos = 0;
 
-          //while ( std::distance(mi_L2iter.sw_end, lastSuperWindowRangeEnd) >= 0)
-          while (std::distance(windowStart, lastSuperWindowRangeStart) >= 0)
+          auto cwp = windowStart->wpos;
+          bool searching = true;
+          while (windowStart != Q.seedHits.end() && std::distance(windowStart, lastSuperWindowRangeStart) > 0)
           {
-            assert(slidingWindow.size() <= 50);
-            Map::MIIter_t new_mi_p = windowStart;
-            while (!slidingWindow.empty() && slidingWindow.front().wpos_end < new_mi_p->wpos) {
+            while (!slidingWindow.empty() && slidingWindow.front().wpos_end < windowStart->wpos) {
                 std::pop_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
                 slidingWindow.pop_back();
             }
-            slidingWindow.push_back(*new_mi_p);
+            slidingWindow.push_back(*windowStart);
             std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
+            assert(slidingWindow.size() <= Q.sketchSize);
             
             //Is this sliding window the best we have so far?
             if (slidingWindow.size() > l2_out.sharedSketchSize)
             {
+              searching = false;
+              //if (windowStart->wpos != cwp)
+                //std::cout << "Scooting " <<  windowStart->wpos - cwp << std::endl;
               l2_out.sharedSketchSize = slidingWindow.size();
               l2_out.optimalStart = windowStart;
 
@@ -603,11 +637,17 @@ namespace skch
               beginOptimalPos = windowStart->wpos;
               lastOptimalPos = windowStart->wpos;
             }
-            else if(slidingWindow.size() == l2_out.sharedSketchSize)
+            else if(slidingWindow.size() == l2_out.sharedSketchSize && !searching)
             {
+              searching = false;
               //Still save the position
               lastOptimalPos = windowStart->wpos; 
+              //if (windowStart->wpos != cwp)
+                //std::cout << "Scooting " <<  windowStart->wpos - cwp << std::endl;
+            } else {
+              searching = true;
             }
+            cwp = windowStart->wpos;
 
             //If current sliding window touches end, we should stop further evaluation
             if(std::distance(windowStart, lastSuperWindowRangeStart) == 0)
@@ -623,9 +663,9 @@ namespace skch
           l2_out.meanOptimalPos = (beginOptimalPos + lastOptimalPos)/2;
 
           int strand_votes = 0;
-          windowStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, l2_out.meanOptimalPos - Q.len);
+          windowStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, std::max(l2_out.meanOptimalPos - Q.len, 0));
           slidingWindow.clear();
-          while(windowStart->wpos < candidateLocus.rangeStartPos) {
+          while(windowStart != Q.seedHits.end() && windowStart->wpos < l2_out.meanOptimalPos and windowStart->seqId == l2_out.seqId) {
               if (windowStart->wpos_end >= l2_out.meanOptimalPos) {
                   strand_votes += windowStart->strand == skch::FWD ? 1 : -1;
               }

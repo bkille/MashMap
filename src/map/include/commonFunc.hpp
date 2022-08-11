@@ -124,7 +124,8 @@ namespace skch
         if(alphabetSize == 4) //not protein
           CommonFunc::reverseComplement(seq, seqRev, len);
 
-        std::set<MashimizerInfo, decltype(MashimizerInfo::lessByHash)*> sketched_vals(MashimizerInfo::lessByHash);
+        // TODO cleanup
+        std::map<hash_t, MashimizerInfo> sketched_vals;
 
         for(offset_t i = 0; i < len - kmerSize + 1; i++)
         {
@@ -146,18 +147,25 @@ namespace skch
             //Check the strand of this minimizer hash value
             auto currentStrand = hashFwd < hashBwd ? strnd::FWD : strnd::REV;
 
-            // Add current hash to heap
-            if (sketched_vals.size() < sketchSize || std::prev(sketched_vals.end())->hash > currentKmer)  {
-                sketched_vals.emplace(MashimizerInfo{currentKmer, seqCounter, i, -1, currentStrand});
-            }
-            if (sketched_vals.size() > sketchSize) {
-                sketched_vals.erase(std::prev(sketched_vals.end()));
+            if (sketched_vals.empty() || currentKmer > std::prev(sketched_vals.end())->first || sketched_vals.find(currentKmer) == sketched_vals.end()) {
+              // Add current hash to heap
+              if (sketched_vals.size() < sketchSize || std::prev(sketched_vals.end())->second.hash > currentKmer)  {
+                  sketched_vals[currentKmer] = MashimizerInfo{currentKmer, seqCounter, i, i, currentStrand};
+              }
+              if (sketched_vals.size() > sketchSize) {
+                  sketched_vals.erase(std::prev(sketched_vals.end()));
+              }
+            } else {
+              sketched_vals[currentKmer].wpos_end = i;
+              sketched_vals[currentKmer].strand += currentStrand == strnd::FWD ? 1 : -1;
             }
           }
         }
-
+        assert(sketched_vals.size() <= sketchSize);
         mashimizerIndex.reserve(sketched_vals.size());
-        std::copy(sketched_vals.begin(), sketched_vals.end(), std::back_inserter(mashimizerIndex));
+        std::transform(sketched_vals.begin(), sketched_vals.end(), std::back_inserter(mashimizerIndex), 
+            [](const auto& pair) {return pair.second;});
+        std::for_each(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {mi.strand = (mi.strand >= 0 ? strnd::FWD : strnd::REV);});
         return;
     }
     
@@ -360,6 +368,18 @@ namespace skch
           std::advance(iter, 1);
           rank += 1;
         }
+
+#ifdef DEBUG
+        std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {
+            if (l.hash != r.hash) return l.hash < r.hash; else return l.wpos < r.wpos;});
+        auto prev_hash = 0;
+        for (auto iter = mashimizerIndex.begin() + 1; iter != mashimizerIndex.end(); iter++) {
+          if (iter->hash != (iter-1)->hash) {
+            continue;
+          }
+          assert((iter-1)->wpos_end < iter->wpos);
+        }
+#endif 
 
         // TODO is this necessary?
         std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {return l.wpos < r.wpos;});

@@ -106,8 +106,7 @@ namespace align
        * @brief                 parse query sequences and mashmap mappings
        *                        to compute sequence alignments
        */
-      void computeAlignments()
-      {
+      void computeAlignments() {
         //Parse query sequences
         for(const auto &fileName : param.querySequences)
         {
@@ -127,6 +126,7 @@ namespace align
           //size of sequence
           skch::offset_t len;
 
+          std::cout << "Opening " << param.samOutputFile << std::endl;
           std::ofstream outstrm(param.samOutputFile);
 
           while ((len = kseq_read(seq)) >= 0) 
@@ -177,6 +177,7 @@ namespace align
           }
 
           mappingListStream.close();
+          outstrm.close();
 
           kseq_destroy(seq);  
           gzclose(fp); //close the file handler 
@@ -285,9 +286,10 @@ namespace align
         //Output to file
         if (result.status == EDLIB_STATUS_OK && result.alignmentLength != 0) 
         {
+          std::cout << "INFO, align::Aligner::doAlignment" << result.alignmentLength << std::endl;
           char* cigar = edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD);
 
-          outstrm << mappingRecordLine 
+          std::cerr << mappingRecordLine 
             << " " << result.editDistance * 1.0/result.alignmentLength
             << " " << cigar 
             << "\n";
