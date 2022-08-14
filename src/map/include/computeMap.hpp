@@ -236,6 +236,9 @@ namespace skch
             //Map this fragment
             mapSingleQueryFrag(Q, l2Mappings);
 
+            //Clear the seed hit table
+            Q.seedHits.clear();
+
             //Adjust query coordinates and length in the reported mapping
             std::for_each(l2Mappings.begin(), l2Mappings.end(), [&](MappingResult &e){ 
                 e.queryLen = input->len;
@@ -282,6 +285,7 @@ namespace skch
 
         //Make sure mapping boundary don't exceed sequence lengths
         this->mappingBoundarySanityCheck(input, output->readMappings);
+
 
         return output;
       }
@@ -660,7 +664,7 @@ namespace skch
 
           //Save reference sequence id in the mapping output 
           l2_out.seqId = candidateLocus.seqId;
-          l2_out.meanOptimalPos = (beginOptimalPos + lastOptimalPos)/2;
+          l2_out.meanOptimalPos =  beginOptimalPos;
 
           int strand_votes = 0;
           windowStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, std::max(l2_out.meanOptimalPos - Q.len, 0));
