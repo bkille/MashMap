@@ -16,6 +16,7 @@
 #include <map>
 #include <set>
 #include <cassert>
+#include <memory>
 
 //Own includes
 #include "map/include/map_parameters.hpp"
@@ -98,13 +99,13 @@ namespace skch
     }
 
     /**
-     * @brief       Compute sketched kmers for a string
+     * @brief       Compute the minimum s kmers for a string.
      * @param[out]  mashimizerIndex     container storing sketched Kmers 
-     * @param[in]   seq             pointer to input sequence
-     * @param[in]   len             length of input sequence
+     * @param[in]   seq                 pointer to input sequence
+     * @param[in]   len                 length of input sequence
      * @param[in]   kmerSize
-     * @param[in]   s               sketch size. 
-     * @param[in]   seqCounter      current sequence number, used while saving the position of minimizer
+     * @param[in]   s                   sketch size. 
+     * @param[in]   seqCounter          current sequence number, used while saving the position of minimizer
      */
     template <typename T>
       inline void sketchSequence(
@@ -119,10 +120,11 @@ namespace skch
         makeUpperCase(seq, len);
 
         //Compute reverse complement of seq
-        char* seqRev = new char[len];
+        std::unique_ptr<char[]> seqRev(new char[len]);
+        //char* seqRev = new char[len];
 
         if(alphabetSize == 4) //not protein
-          CommonFunc::reverseComplement(seq, seqRev, len);
+          CommonFunc::reverseComplement(seq, seqRev.get(), len);
 
         // TODO cleanup
         std::map<hash_t, MashimizerInfo> sketched_vals;
@@ -134,7 +136,7 @@ namespace skch
           hash_t hashBwd;
 
           if(alphabetSize == 4)
-            hashBwd = CommonFunc::getHash(seqRev + len - i - kmerSize, kmerSize);
+            hashBwd = CommonFunc::getHash(seqRev.get() + len - i - kmerSize, kmerSize);
           else  //proteins
             hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
 
@@ -164,8 +166,8 @@ namespace skch
         assert(sketched_vals.size() <= sketchSize);
         mashimizerIndex.reserve(sketched_vals.size());
         std::transform(sketched_vals.begin(), sketched_vals.end(), std::back_inserter(mashimizerIndex), 
-            [](const auto& pair) {return pair.second;});
-        std::for_each(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {mi.strand = (mi.strand >= 0 ? strnd::FWD : strnd::REV);});
+            [](const auto& pair) {pair.second.strand = pair.second.strand >= 0 ? strnd::FWD : strnd::REV; return pair.second;});
+        //std::for_each(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {mi.strand = (mi.strand >= 0 ? strnd::FWD : strnd::REV);});
         return;
     }
     
@@ -203,10 +205,10 @@ namespace skch
         makeUpperCase(seq, len);
 
         //Compute reverse complement of seq
-        char* seqRev = new char[len];
+        std::unique_ptr<char[]> seqRev(new char[len]);
 
         if(alphabetSize == 4) //not protein
-          CommonFunc::reverseComplement(seq, seqRev, len);
+          CommonFunc::reverseComplement(seq, seqRev.get(), len);
 
         for(offset_t i = 0; i < len - kmerSize + 1; i++)
         {
@@ -229,7 +231,7 @@ namespace skch
           hash_t hashBwd;
 
           if(alphabetSize == 4)
-            hashBwd = CommonFunc::getHash(seqRev + len - i - kmerSize, kmerSize);
+            hashBwd = CommonFunc::getHash(seqRev.get() + len - i - kmerSize, kmerSize);
           else  //proteins
             hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
 
@@ -249,7 +251,7 @@ namespace skch
               // If the hash that is getting popped off is still in the window and it is now leaving the window 
               // wpos != -1 and wpos_end == -1 --> still in window
               if (sortedWindow[leaving_hash].first.wpos != -1 and sortedWindow[leaving_hash].first.wpos_end == -1 && sortedWindow[leaving_hash].second == 1) {
-                sortedWindow[leaving_hash].first.wpos_end = currentWindowId - 1;
+                sortedWindow[leaving_hash].first.wpos_end = currentWindowId;
                 mashimizerIndex.push_back(sortedWindow[leaving_hash].first);
               }
 
@@ -317,7 +319,7 @@ namespace skch
               if (sortedWindow.size() > sketchSize) {
                 auto& border_mi_it = std::next(piv.p)->second.first;
                 if (border_mi_it.wpos != -1 && border_mi_it.wpos_end == -1) {
-                  border_mi_it.wpos_end = currentWindowId - 1;
+                  border_mi_it.wpos_end = currentWindowId;
                   mashimizerIndex.push_back(
                           MashimizerInfo{border_mi_it.hash, border_mi_it.seqId, border_mi_it.wpos, border_mi_it.wpos_end, border_mi_it.strand});
                   // resest mi info
@@ -338,24 +340,24 @@ namespace skch
             }
 
           }
-#ifdef DEBUG
-          if (i % 10000000 == 0 and i != 0) {
-              std::cout << i << std::endl;
-              std::cout << piv.rank << ", " << sortedWindow.size() << ", " << i << std::endl;
-          }
-          if ((sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0) != piv.rank) {
-              std::cout << "Actual rank = " 
-                  << (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
-                  << "\tAnnotated rank = " << piv.rank << std::endl;
-              exit(1);
-          }
-          if (piv.rank != std::min<uint64_t>(sortedWindow.size(), sketchSize) ){
-              std::cout << "Actual rank = " 
-                  << (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
-                  << "\tAnnotated rank = " << piv.rank << std::endl;
-              exit(1);
-          }
-#endif
+//#ifdef DEBUG
+          //if (i % 10000000 == 0 and i != 0) {
+              //std::cout << i << std::endl;
+              //std::cout << piv.rank << ", " << sortedWindow.size() << ", " << i << std::endl;
+          //}
+          //if ((sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0) != piv.rank) {
+              //std::cout << "Actual rank = " 
+                  //<< (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
+                  //<< "\tAnnotated rank = " << piv.rank << std::endl;
+              //exit(1);
+          //}
+          //if (piv.rank != std::min<uint64_t>(sortedWindow.size(), sketchSize) ){
+              //std::cout << "Actual rank = " 
+                  //<< (sortedWindow.size() > 0 ? std::distance(sortedWindow.begin(), piv.p) + 1 : 0 )
+                  //<< "\tAnnotated rank = " << piv.rank << std::endl;
+              //exit(1);
+          //}
+//#endif
         }
 
         uint64_t rank = 1;
@@ -396,7 +398,7 @@ namespace skch
         std::vector<MashimizerInfo> endpos_heap;
         auto heap_cmp = [](auto& l, auto& r) {return l.wpos_end >= r.wpos_end;};
         for (auto& mi : mashimizerIndex) {
-          while (!endpos_heap.empty() && endpos_heap.front().wpos_end < mi.wpos) {
+          while (!endpos_heap.empty() && endpos_heap.front().wpos_end <= mi.wpos) {
             std::pop_heap(endpos_heap.begin(), endpos_heap.end(), heap_cmp); 
             endpos_heap.pop_back();
           }
@@ -407,8 +409,6 @@ namespace skch
 #endif
         //std::cout << "BEFORE " << mashimizerIndex.size() << "\n";
         //std::cout << "AFTER " << mashimizerIndex.size() << "\n";
-
-        delete [] seqRev;
       }
 
     /**

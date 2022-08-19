@@ -183,11 +183,12 @@ namespace skch
     {
       char *seq;                          //query sequence pointer 
       seqno_t seqCounter;                 //query sequence counter
+      std::string seqName;
       offset_t len;                       //length of this query sequence
+      offset_t startPos;
       int sketchSize;                     //sketch size
       MinimizerVec minimizerTableQuery;   //Vector of minimizers in the query 
       MinimizerVec seedHits;              //Vector of seed hits in the reference
-
     };
 }
 

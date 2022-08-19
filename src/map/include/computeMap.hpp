@@ -14,6 +14,7 @@
 #include <zlib.h>  
 #include <cassert>
 #include <numeric>
+#include <iostream>
 
 //Own includes
 #include "map/include/base_types.hpp"
@@ -229,7 +230,9 @@ namespace skch
             QueryMetaData <MinVec_Type> Q;
             Q.seq = &(input->seq)[0u] + i * param.segLength;
             Q.len = param.segLength;
+            Q.startPos = i*param.segLength;
             Q.seqCounter = input->seqCounter;
+            Q.seqName = input->seqName;
 
             MappingResultsVector_t l2Mappings;   
 
@@ -256,7 +259,9 @@ namespace skch
             QueryMetaData <MinVec_Type> Q;
             Q.seq = &(input->seq)[0u] + input->len - param.segLength;
             Q.len = param.segLength;
+            Q.startPos = input->len - param.segLength;
             Q.seqCounter = input->seqCounter;
+            Q.seqName = input->seqName;
 
             MappingResultsVector_t l2Mappings;   
 
@@ -425,26 +430,26 @@ namespace skch
               else return l.wpos < r.wpos; 
           });
 
-#ifdef DEBUG
-          std::vector<MashimizerInfo> slidingWindow;
-          constexpr auto heap_cmp = [](const skch::MashimizerInfo& l, const skch::MashimizerInfo& r) {return l.wpos_end >= r.wpos_end;};
-          auto prev_seqId = 0;
-          for (auto& mi : Q.seedHits) {
-            if (mi.seqId != prev_seqId) {
-              slidingWindow.clear();
-            }
-            prev_seqId = mi.seqId;
-            while (!slidingWindow.empty() && slidingWindow.front().wpos_end < mi.wpos) {
-                std::pop_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
-                slidingWindow.pop_back();
-            }
-            slidingWindow.push_back(mi);
-            std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
-            assert(slidingWindow.size() <= Q.sketchSize);
-          }
-#endif
+//#ifdef DEBUG
+          //std::vector<MashimizerInfo> slidingWindow;
+          //constexpr auto heap_cmp = [](const skch::MashimizerInfo& l, const skch::MashimizerInfo& r) {return l.wpos_end >= r.wpos_end;};
+          //auto prev_seqId = 0;
+          //for (auto& mi : Q.seedHits) {
+            //if (mi.seqId != prev_seqId) {
+              //slidingWindow.clear();
+            //}
+            //prev_seqId = mi.seqId;
+            //while (!slidingWindow.empty() && slidingWindow.front().wpos_end < mi.wpos) {
+                //std::pop_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
+                //slidingWindow.pop_back();
+            //}
+            //slidingWindow.push_back(mi);
+            //std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
+            //assert(slidingWindow.size() <= Q.sketchSize);
+          //}
+//#endif
 
-          int minimumHits = Stat::estimateMinimumHitsRelaxed(Q.sketchSize, param.kmerSize, param.percentageIdentity);
+          int minimumHits = Stat::estimateMinimumHits(Q.sketchSize, param.kmerSize, param.percentageIdentity);
 
           this->computeL1CandidateRegions(Q, minimumHits, l1Mappings);
 
@@ -579,11 +584,11 @@ namespace skch
             L1_candidateLocus_t &candidateLocus, 
             L2_mapLocus_t &l2_out)
         {
-//#ifdef DEBUG
-          //std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqCounter << std::endl; 
-          //std::cout << "seqId: " << candidateLocus.seqId << ", startpos: " << candidateLocus.rangeStartPos << std::endl;
-          //std::cout << "seqId: " << candidateLocus.seqId << ", endpos: " << candidateLocus.rangeEndPos << std::endl;
-//#endif
+#ifdef DEBUG
+          std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
+          std::cout << "seqId: " << candidateLocus.seqId << ", startpos: " << candidateLocus.rangeStartPos << std::endl;
+          std::cout << "seqId: " << candidateLocus.seqId << ", endpos: " << candidateLocus.rangeEndPos << std::endl;
+#endif
           // Look up L1 candidate's begin in the index. Any mashimizer that starts within Q.len
           // of the candidate start could be a mashimizer for the start window.
           MIIter_t firstSuperWindowRangeStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, 
@@ -601,7 +606,7 @@ namespace skch
 
           MIIter_t windowStart = firstSuperWindowRangeStart;
           while(windowStart != Q.seedHits.end() && windowStart->wpos < candidateLocus.rangeStartPos && windowStart->seqId == candidateLocus.seqId) {
-              if (windowStart->wpos_end >= candidateLocus.rangeStartPos) {
+              if (windowStart->wpos_end > candidateLocus.rangeStartPos) {
                   slidingWindow.push_back(*windowStart);
                   std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
               }
@@ -618,9 +623,9 @@ namespace skch
 
           auto cwp = windowStart->wpos;
           bool searching = true;
-          while (windowStart != Q.seedHits.end() && std::distance(windowStart, lastSuperWindowRangeStart) > 0)
+          while (windowStart != Q.seedHits.end() && windowStart->seqId == candidateLocus.seqId &&  windowStart->wpos <= candidateLocus.rangeEndPos + Q.len)
           {
-            while (!slidingWindow.empty() && slidingWindow.front().wpos_end < windowStart->wpos) {
+            while (!slidingWindow.empty() && slidingWindow.front().wpos_end <= windowStart->wpos) {
                 std::pop_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
                 slidingWindow.pop_back();
             }
@@ -632,8 +637,6 @@ namespace skch
             if (slidingWindow.size() > l2_out.sharedSketchSize)
             {
               searching = false;
-              //if (windowStart->wpos != cwp)
-                //std::cout << "Scooting " <<  windowStart->wpos - cwp << std::endl;
               l2_out.sharedSketchSize = slidingWindow.size();
               l2_out.optimalStart = windowStart;
 
@@ -641,25 +644,22 @@ namespace skch
               beginOptimalPos = windowStart->wpos;
               lastOptimalPos = windowStart->wpos;
             }
-            else if(slidingWindow.size() == l2_out.sharedSketchSize && !searching)
+            else if(slidingWindow.size() == l2_out.sharedSketchSize)
             {
               searching = false;
               //Still save the position
               lastOptimalPos = windowStart->wpos; 
-              //if (windowStart->wpos != cwp)
-                //std::cout << "Scooting " <<  windowStart->wpos - cwp << std::endl;
             } else {
               searching = true;
             }
             cwp = windowStart->wpos;
 
-            //If current sliding window touches end, we should stop further evaluation
-            if(std::distance(windowStart, lastSuperWindowRangeStart) == 0)
-              break;
-
             //Advance the current super-window
             windowStart++;
 
+            //If current sliding window touches end, we should stop further evaluation
+            //if(windowStart->wpos > candidateLocus.rangeEndPos + Q.len || windowStart->seqId != candidateLocus.seqId)
+              //break;
           }//End of while loop
 
           //Save reference sequence id in the mapping output 
@@ -669,8 +669,8 @@ namespace skch
           int strand_votes = 0;
           windowStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, std::max(l2_out.meanOptimalPos - Q.len, 0));
           slidingWindow.clear();
-          while(windowStart != Q.seedHits.end() && windowStart->wpos < l2_out.meanOptimalPos and windowStart->seqId == l2_out.seqId) {
-              if (windowStart->wpos_end >= l2_out.meanOptimalPos) {
+          while(windowStart != Q.seedHits.end() && windowStart->wpos <= l2_out.meanOptimalPos and windowStart->seqId == l2_out.seqId) {
+              if (windowStart->wpos_end > l2_out.meanOptimalPos) {
                   strand_votes += windowStart->strand == skch::FWD ? 1 : -1;
               }
               windowStart++;
@@ -755,6 +755,9 @@ namespace skch
           if(readMappings.size() < 2)
             return;
 
+          // Split reads must be nearly adjacent in order to be chained
+          uint32_t cutoffDistance = 5.0 * (param.segLength / (double)param.sketchSize);
+
           //Sort the mappings by reference position
           std::sort(readMappings.begin(), readMappings.end(), [](const MappingResult &a, const MappingResult &b)  
               {
@@ -767,24 +770,48 @@ namespace skch
             it->splitMappingId = std::distance(readMappings.begin(), it);
           }
 
+          // Keep track of best sketches
+          std::vector<uint32_t> bestSketchSize;
+
           //Start the procedure to identify the chains
           for(auto it = readMappings.begin(); it != readMappings.end(); it++)
           {
             //Which fragment is this wrt. the complete read
-            auto currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
+            uint32_t currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
+
+            while (currMappingFragno + 1 > bestSketchSize.size()) {
+              bestSketchSize.push_back(0);
+            }
+            bestSketchSize[currMappingFragno] = std::max<uint32_t>(
+                bestSketchSize[currMappingFragno],
+                it->conservedSketches
+            );
 
             for(auto it2 = std::next(it); it2 != readMappings.end(); it2++)
             {
               auto thisMappingFragno = std::ceil(it2->queryStartPos * 1.0/ param.segLength);
 
-              //If this mapping is too far from current mapping being evaluated, stop finding a merge
-              if(it2->refSeqId != it->refSeqId || it2->refStartPos - it->refEndPos > 2 * param.segLength)
-                break;
-
-              //If the next mapping is within range, check if it is consecutive query fragment and strand matches
+              // If mappings are on different seqs, continue
+              if(it2->refSeqId != it->refSeqId)
+               continue;
+             
+              // Check if it is consecutive query fragment and strand matches
               if( it2->strand == it->strand
                   && thisMappingFragno == currMappingFragno + (it->strand == strnd::FWD ? 1 : -1) )
               {
+
+                // Use offset to identify appropriate chaining for end-of-read fragments.
+                int offset = 0; //it->queryEndPos - it2->queryStartPos + 1;
+                if (it->strand == strnd::FWD) {
+                  offset = it->queryEndPos - it2->queryStartPos + 1;
+                } else {
+                  offset = it2->queryEndPos - it->queryStartPos + 1;
+                }
+
+                //If this mapping is too far from current mapping being evaluated, skip
+                if (std::abs((int)it2->refStartPos + offset - (int)it->refEndPos) > cutoffDistance)
+                  continue;
+
                 it2->splitMappingId = it->splitMappingId;   //merge
                 continue;
               }
@@ -793,45 +820,58 @@ namespace skch
 
           //Keep single mapping for each chain and discard others
 
+          // Delete any non-optimal mappings
+          readMappings.erase( 
+            std::remove_if(readMappings.begin(), readMappings.end(), 
+              [&](MappingResult &e){ 
+                auto currMappingFragno = std::ceil(e.queryStartPos * 1.0/param.segLength);
+                return e.conservedSketches < bestSketchSize[currMappingFragno]; 
+            }),
+            readMappings.end());
+
           //Sort the mappings by post-merge split mapping id
           std::sort(readMappings.begin(), readMappings.end(), [](const MappingResult &a, const MappingResult &b)  
               {
               return a.splitMappingId < b.splitMappingId;
               });
 
-          for(auto it = readMappings.begin(); it != readMappings.end();)
-          {
-            //Bucket by each chain
-            auto it_end = std::find_if(it, readMappings.end(), [&](const MappingResult &e){return e.splitMappingId != it->splitMappingId;} ); 
-
-            //[it -- it_end) represents same chain
-
-            //Incorporate chain information into first mapping
-
-            //compute chain length
-            std::for_each(it, it_end, [&](MappingResult &e)
+          if (!param.noChain) {
+            for(auto it = readMappings.begin(); it != readMappings.end();)
             {
-              it->queryStartPos = std::min( it->queryStartPos, e.queryStartPos);
-              it->refStartPos = std::min( it->refStartPos, e.refStartPos);
+              //Bucket by each chain
+              auto it_end = std::find_if(it, readMappings.end(), [&](const MappingResult &e){return e.splitMappingId != it->splitMappingId;} ); 
 
-              it->queryEndPos = std::max( it->queryEndPos, e.queryEndPos);
-              it->refEndPos = std::max( it->refEndPos, e.refEndPos);
-            });
+              //[it -- it_end) represents same chain
 
-            //Mean identity of all mappings in the chain
-            it->nucIdentity = (   std::accumulate(it, it_end, 0.0, 
-                                  [](double x, MappingResult &e){ return x + e.nucIdentity; })     )/ std::distance(it, it_end);
 
-            //Discard other mappings of this chain
-            std::for_each( std::next(it), it_end, [&](MappingResult &e){ e.discard = 1; });
+              //Incorporate chain information into first mapping
 
-            //advance the iterator
-            it = it_end;
+              //compute chain length
+              std::for_each(it, it_end, [&](MappingResult &e)
+              {
+                // Only use the best mappings in a chain to compute the window
+                it->queryStartPos = std::min( it->queryStartPos, e.queryStartPos);
+                it->refStartPos = std::min( it->refStartPos, e.refStartPos);
+
+                it->queryEndPos = std::max( it->queryEndPos, e.queryEndPos);
+                it->refEndPos = std::max( it->refEndPos, e.refEndPos);
+              });
+
+              //Mean identity of all mappings in the chain
+              it->nucIdentity = (   std::accumulate(it, it_end, 0.0, 
+                                    [](double x, MappingResult &e){ return x + e.nucIdentity; })     )/ std::distance(it, it_end);
+
+              //Discard other mappings of this chain
+              std::for_each( std::next(it), it_end, [&](MappingResult &e){ e.discard = 1; });
+
+              //advance the iterator
+              it = it_end;
+            }
+
+            readMappings.erase( 
+                std::remove_if(readMappings.begin(), readMappings.end(), [&](MappingResult &e){ return e.discard == 1; }),
+                readMappings.end());
           }
-
-          readMappings.erase( 
-              std::remove_if(readMappings.begin(), readMappings.end(), [&](MappingResult &e){ return e.discard == 1; }),
-              readMappings.end());
        }
 
       /**
@@ -903,7 +943,8 @@ namespace skch
             << " " << this->refSketch.metadata[e.refSeqId].len
             << " " << e.refStartPos 
             << " " << e.refEndPos
-            << " " << e.nucIdentity;
+            << " " << e.nucIdentity
+            << " " << e.conservedSketches;
 
 #ifdef DEBUG
           outstrm << std::endl;

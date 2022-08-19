@@ -54,6 +54,7 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
     cmd.defineOptionAlternative("segLength","s");
 
     cmd.defineOption("noSplit", "disable splitting of input sequences during mapping [enabled by default]");
+    cmd.defineOption("noChain", "disable chaining of fragments [enabled by default]");
 
     cmd.defineOption("perc_identity", "threshold for identity [default : 85]", ArgvParser::OptionRequiresValue);
     cmd.defineOptionAlternative("perc_identity","pi");
@@ -262,6 +263,13 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
     }
     else
       parameters.split = true;
+
+    if(cmd.foundOption("noChain"))
+    {
+      parameters.noChain = true;
+    }
+    else
+      parameters.noChain = false;
 
 
     //Parse algorithm parameters
