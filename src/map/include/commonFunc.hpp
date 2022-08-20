@@ -127,7 +127,8 @@ namespace skch
           CommonFunc::reverseComplement(seq, seqRev.get(), len);
 
         // TODO cleanup
-        std::map<hash_t, MashimizerInfo> sketched_vals;
+        std::unordered_map<hash_t, MashimizerInfo> sketched_vals;
+        std::vector<hash_t> sketched_heap;
 
         for(offset_t i = 0; i < len - kmerSize + 1; i++)
         {
@@ -149,15 +150,24 @@ namespace skch
             //Check the strand of this minimizer hash value
             auto currentStrand = hashFwd < hashBwd ? strnd::FWD : strnd::REV;
 
-            if (sketched_vals.empty() || currentKmer > std::prev(sketched_vals.end())->first || sketched_vals.find(currentKmer) == sketched_vals.end()) {
+            if (sketched_vals.empty() || sketched_vals.find(currentKmer) == sketched_vals.end()) {
+
               // Add current hash to heap
-              if (sketched_vals.size() < sketchSize || std::prev(sketched_vals.end())->second.hash > currentKmer)  {
+              if (sketched_vals.size() < sketchSize || currentKmer < sketched_heap[0])  {
                   sketched_vals[currentKmer] = MashimizerInfo{currentKmer, seqCounter, i, i, currentStrand};
+                  sketched_heap.push_back(currentKmer);
+                  std::push_heap(sketched_heap.begin(), sketched_heap.end());
               }
+
+              // Remove one if too large
               if (sketched_vals.size() > sketchSize) {
-                  sketched_vals.erase(std::prev(sketched_vals.end()));
+                  sketched_vals.erase(sketched_heap[0]);
+                  std::pop_heap(sketched_heap.begin(), sketched_heap.end());
+                  sketched_heap.pop_back();
               }
             } else {
+              // TODO these sketched values might never be useful, might save memory by deleting
+              // extend the length of the window
               sketched_vals[currentKmer].wpos_end = i;
               sketched_vals[currentKmer].strand += currentStrand == strnd::FWD ? 1 : -1;
             }
@@ -166,7 +176,7 @@ namespace skch
         assert(sketched_vals.size() <= sketchSize);
         mashimizerIndex.reserve(sketched_vals.size());
         std::transform(sketched_vals.begin(), sketched_vals.end(), std::back_inserter(mashimizerIndex), 
-            [](const auto& pair) {pair.second.strand = pair.second.strand >= 0 ? strnd::FWD : strnd::REV; return pair.second;});
+            [](auto& pair) {pair.second.strand = pair.second.strand >= 0 ? strnd::FWD : strnd::REV; return pair.second;});
         //std::for_each(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {mi.strand = (mi.strand >= 0 ? strnd::FWD : strnd::REV);});
         return;
     }
