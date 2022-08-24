@@ -389,7 +389,7 @@ namespace skch
           if (iter->hash != (iter-1)->hash) {
             continue;
           }
-          assert((iter-1)->wpos_end < iter->wpos);
+          assert((iter-1)->wpos_end <= iter->wpos);
         }
 #endif 
 
