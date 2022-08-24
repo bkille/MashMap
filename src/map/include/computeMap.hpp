@@ -779,59 +779,47 @@ namespace skch
             //Which fragment is this wrt. the complete read
             uint32_t currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
 
-            while (currMappingFragno + 1 > bestSketchSize.size()) {
-              bestSketchSize.push_back(0);
-            }
             if (it->conservedSketches < bestSketchSize[currMappingFragno]) {
               it->discard = 1;
             } else {
                 bestSketchSize[currMappingFragno] = it->conservedSketches;
-
-                for(auto it2 = std::next(it); it2 != readMappings.end(); it2++)
-                {
-                  auto thisMappingFragno = std::ceil(it2->queryStartPos * 1.0/ param.segLength);
-
-                  // If mappings are on different seqs or too far apart, stop looking
-                  if(it2->refSeqId != it->refSeqId || ((int)it2->refStartPos - (int)it->refEndPos) > param.segLength + 1)
-                      break;
-                 
-                  // Check if it is consecutive query fragment and strand matches
-                  if( it2->strand == it->strand
-                      && thisMappingFragno == currMappingFragno + (it->strand == strnd::FWD ? 1 : -1) )
-                  {
-
-                    // Use offset to identify appropriate chaining for end-of-read fragments.
-                    int offset = 0; //it->queryEndPos - it2->queryStartPos + 1;
-                    if (it->strand == strnd::FWD) {
-                      offset = it->queryEndPos - it2->queryStartPos + 1;
-                    } else {
-                      offset = it2->queryEndPos - it->queryStartPos + 1;
-                    }
-
-                    //If this mapping is too far from current mapping being evaluated, skip
-                    if (std::abs((int)it2->refStartPos + offset - (int)it->refEndPos) > cutoffDistance)
-                      continue;
-
-                    it2->splitMappingId = it->splitMappingId;   //merge
-                  }
-                }
             }
           }
-        //readMappings.erase( 
-            //std::remove_if(readMappings.begin(), readMappings.end(), [&](MappingResult &e){ return e.discard == 1; }),
-            //readMappings.end());
+          for(auto it = readMappings.begin(); it != readMappings.end(); it++)
+          {
+            uint32_t currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
+            if (it->conservedSketches < bestSketchSize[currMappingFragno]) {
+              continue;
+            }
+            for(auto it2 = std::next(it); it2 != readMappings.end(); it2++)
+            {
+              auto thisMappingFragno = std::ceil(it2->queryStartPos * 1.0/ param.segLength);
 
-          //Keep single mapping for each chain and discard others
+              // If mappings are on different seqs or too far apart, stop looking
+              if(it2->refSeqId != it->refSeqId || (it2->refStartPos - it->refEndPos) > param.segLength + 1)
+                  break;
+             
+              // Check if it is consecutive query fragment and strand matches
+              if( it2->strand == it->strand
+                  && thisMappingFragno == currMappingFragno + (it->strand == strnd::FWD ? 1 : -1) )
+              {
 
-          // Delete any non-optimal mappings
-          //readMappings.erase( 
-            //std::remove_if(readMappings.begin(), readMappings.end(), 
-              //[&](MappingResult &e){ 
-                //auto currMappingFragno = std::ceil(e.queryStartPos * 1.0/param.segLength);
-                //return e.conservedSketches < bestSketchSize[currMappingFragno]; 
-            //}),
-            //readMappings.end()
-          //);
+                // Use offset to identify appropriate chaining for end-of-read fragments.
+                int offset = 0; //it->queryEndPos - it2->queryStartPos + 1;
+                if (it->strand == strnd::FWD) {
+                  offset = it->queryEndPos - it2->queryStartPos + 1;
+                } else {
+                  offset = it2->queryEndPos - it->queryStartPos + 1;
+                }
+
+                //If this mapping is too far from current mapping being evaluated, skip
+                if (std::abs(it2->refStartPos + offset - it->refEndPos) > cutoffDistance)
+                  continue;
+
+                it2->splitMappingId = it->splitMappingId;   //merge
+              }
+            }
+          }
 
           //Sort the mappings by post-merge split mapping id
           std::sort(readMappings.begin(), readMappings.end(), [](const MappingResult &a, const MappingResult &b)  
@@ -842,9 +830,6 @@ namespace skch
           if (!param.noChain) {
             for(auto it = readMappings.begin(); it != readMappings.end();)
             {
-              if (it->discard == 1) {
-                continue;
-              }
               //Bucket by each chain
               auto it_end = std::find_if(it, readMappings.end(), [&](const MappingResult &e){return e.splitMappingId != it->splitMappingId;} ); 
 
@@ -866,7 +851,8 @@ namespace skch
 
               //Mean identity of all mappings in the chain
               it->nucIdentity = (   std::accumulate(it, it_end, 0.0, 
-                                    [](double x, MappingResult &e){ return x + e.nucIdentity; })     )/ std::distance(it, it_end);
+                                    [](double x, MappingResult &e){ return x + e.nucIdentity; })     
+                  )/ std::distance(it, it_end);
 
               //Discard other mappings of this chain
               std::for_each( std::next(it), it_end, [&](MappingResult &e){ e.discard = 1; });
