@@ -54,6 +54,3 @@ jobs:
       # Build your program with the given configuration
       run: make mashmap
 
-    - name: Test
-      run: ./bin/mashmap -r .github/test-data/yeast_genome.fna -q .github/test-data/10-reads.fasta
-      
