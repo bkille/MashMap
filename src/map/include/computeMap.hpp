@@ -488,7 +488,7 @@ namespace skch
               {
                 //Save <1st pos --- 2nd pos>
                 L1_candidateLocus_t candidate{it->seqId, 
-                    std::max(0, it2->wpos - Q.len + 1), it->wpos};
+                    std::max(0, it2->wpos - Q.len + 1), std::max(it2->wpos, it->wpos_end)};
 
                 //Check if this candidate overlaps with last inserted one
                 auto lst = l1Mappings.end(); lst--;
@@ -520,50 +520,52 @@ namespace skch
           ///2. Walk the read over the candidate regions and compute the jaccard similarity with minimum s sketches
           for(auto &candidateLocus: l1Mappings)
           {
-            L2_mapLocus_t l2 = {};
-            computeL2MappedRegions(Q, candidateLocus, l2);
+            std::vector<L2_mapLocus_t> l2_vec = {};
+            computeL2MappedRegions(Q, candidateLocus, l2_vec);
 
-            //Compute mash distance using calculated jaccard
-            float mash_dist = Stat::j2md(1.0 * l2.sharedSketchSize/Q.sketchSize, param.kmerSize);
+            for (auto& l2 : l2_vec) {
+              //Compute mash distance using calculated jaccard
+              float mash_dist = Stat::j2md(1.0 * l2.sharedSketchSize/Q.sketchSize, param.kmerSize);
 
-            //Compute lower bound to mash distance within 90% confidence interval
-            float mash_dist_lower_bound = Stat::md_lower_bound(mash_dist, Q.sketchSize, param.kmerSize, skch::fixed::confidence_interval);
+              //Compute lower bound to mash distance within 90% confidence interval
+              float mash_dist_lower_bound = Stat::md_lower_bound(mash_dist, Q.sketchSize, param.kmerSize, skch::fixed::confidence_interval);
 
-            float nucIdentity = 100 * (1 - mash_dist);
-            float nucIdentityUpperBound = 100 * (1 - mash_dist_lower_bound);
+              float nucIdentity = 100 * (1 - mash_dist);
+              float nucIdentityUpperBound = 100 * (1 - mash_dist_lower_bound);
 
-            //Report the alignment
-            if(nucIdentityUpperBound >= param.percentageIdentity)
-            {
-              MappingResult res;
-
-              //Save the output
+              //Report the alignment
+              if(nucIdentityUpperBound >= param.percentageIdentity)
               {
-                res.queryLen = Q.len;
-                res.refStartPos = l2.meanOptimalPos ;
-                res.refEndPos = l2.meanOptimalPos + Q.len - 1;
-                res.queryStartPos = 0;
-                res.queryEndPos = Q.len - 1;
-                res.refSeqId = l2.seqId;
-                res.querySeqId = Q.seqCounter;
-                res.nucIdentity = nucIdentity;
-                res.nucIdentityUpperBound = nucIdentityUpperBound;
-                res.sketchSize = Q.sketchSize;
-                res.conservedSketches = l2.sharedSketchSize;
-                res.strand = l2.strand; 
+                MappingResult res;
 
-                //Compute additional statistics -> strand, reference compexity
+                //Save the output
                 {
-                  //SlideMapper<Q_Info> slidemap(Q);
-                  //slidemap.insert_ref(l2.optimalStart, l2.optimalEnd);
-                  //int strandVotes, uniqueRefHashes;
-                  //slidemap.computeStatistics(strandVotes, uniqueRefHashes);
+                  res.queryLen = Q.len;
+                  res.refStartPos = l2.meanOptimalPos ;
+                  res.refEndPos = l2.meanOptimalPos + Q.len - 1;
+                  res.queryStartPos = 0;
+                  res.queryEndPos = Q.len - 1;
+                  res.refSeqId = l2.seqId;
+                  res.querySeqId = Q.seqCounter;
+                  res.nucIdentity = nucIdentity;
+                  res.nucIdentityUpperBound = nucIdentityUpperBound;
+                  res.sketchSize = Q.sketchSize;
+                  res.conservedSketches = l2.sharedSketchSize;
+                  res.strand = l2.strand; 
 
-                  //res.strand = strandVotes > 0 ? strnd::FWD : strnd::REV;
-                  //res.strand = strnd::FWD;
+                  //Compute additional statistics -> strand, reference compexity
+                  {
+                    //SlideMapper<Q_Info> slidemap(Q);
+                    //slidemap.insert_ref(l2.optimalStart, l2.optimalEnd);
+                    //int strandVotes, uniqueRefHashes;
+                    //slidemap.computeStatistics(strandVotes, uniqueRefHashes);
+
+                    //res.strand = strandVotes > 0 ? strnd::FWD : strnd::REV;
+                    //res.strand = strnd::FWD;
+                  }
+
+                  l2Mappings.push_back(res);
                 }
-
-                l2Mappings.push_back(res);
               }
             }
           }
@@ -582,13 +584,13 @@ namespace skch
       template <typename Q_Info>
         void computeL2MappedRegions(Q_Info &Q, 
             L1_candidateLocus_t &candidateLocus, 
-            L2_mapLocus_t &l2_out)
+            std::vector<L2_mapLocus_t> &l2_vec_out)
         {
-#ifdef DEBUG
-          std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
-          std::cout << "seqId: " << candidateLocus.seqId << ", startpos: " << candidateLocus.rangeStartPos << std::endl;
-          std::cout << "seqId: " << candidateLocus.seqId << ", endpos: " << candidateLocus.rangeEndPos << std::endl;
-#endif
+//#ifdef DEBUG
+          //std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
+          //std::cout << "seqId: " << candidateLocus.seqId << ", startpos: " << candidateLocus.rangeStartPos << std::endl;
+          //std::cout << "seqId: " << candidateLocus.seqId << ", endpos: " << candidateLocus.rangeEndPos << std::endl;
+//#endif
           // Look up L1 candidate's begin in the index. Any mashimizer that starts within Q.len
           // of the candidate start could be a mashimizer for the start window.
           MIIter_t firstSuperWindowRangeStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, 
@@ -605,38 +607,49 @@ namespace skch
           std::vector<skch::MashimizerInfo> slidingWindow;
 
           MIIter_t windowStart = firstSuperWindowRangeStart;
+          int strand_votes = 0;
+          int prev_strand_votes;
           while(windowStart != Q.seedHits.end() && windowStart->wpos < candidateLocus.rangeStartPos && windowStart->seqId == candidateLocus.seqId) {
               if (windowStart->wpos_end > candidateLocus.rangeStartPos) {
                   slidingWindow.push_back(*windowStart);
                   std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
+                  strand_votes += windowStart->strand == skch::FWD ? 1 : -1;
               }
               windowStart++;
           }
 
 
           //Look up L1 candidate's end in the index
-          MIIter_t lastSuperWindowRangeStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, 
-              candidateLocus.rangeEndPos);
+          //MIIter_t lastSuperWindowRangeStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, 
+              //candidateLocus.rangeEndPos);
 
           int beginOptimalPos = 0;
           int lastOptimalPos = 0;
 
           auto cwp = windowStart->wpos;
-          bool searching = true;
-          while (windowStart != Q.seedHits.end() && windowStart->seqId == candidateLocus.seqId &&  windowStart->wpos <= candidateLocus.rangeEndPos + Q.len)
+          bool in_candidate = false;
+          int bestSketchSize = 0;
+          L2_mapLocus_t l2_out = {};
+          while (windowStart != Q.seedHits.end() && windowStart->seqId == candidateLocus.seqId &&  windowStart->wpos <= candidateLocus.rangeEndPos + 2*Q.len)
           {
             while (!slidingWindow.empty() && slidingWindow.front().wpos_end <= windowStart->wpos) {
+                strand_votes -= slidingWindow.front().strand == skch::FWD ? 1 : -1;
                 std::pop_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
                 slidingWindow.pop_back();
             }
+#ifdef DEBUG
+#endif
             slidingWindow.push_back(*windowStart);
             std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
             assert(slidingWindow.size() <= Q.sketchSize);
+            strand_votes += windowStart->strand == skch::FWD ? 1 : -1;
+            //std::cout << windowStart->wpos << ": " << slidingWindow.size() << std::endl;
             
             //Is this sliding window the best we have so far?
-            if (slidingWindow.size() > l2_out.sharedSketchSize)
+            if (slidingWindow.size() > bestSketchSize)
             {
-              searching = false;
+              in_candidate = true;
+              bestSketchSize = slidingWindow.size();
               l2_out.sharedSketchSize = slidingWindow.size();
               l2_out.optimalStart = windowStart;
 
@@ -644,14 +657,32 @@ namespace skch
               beginOptimalPos = windowStart->wpos;
               lastOptimalPos = windowStart->wpos;
             }
-            else if(slidingWindow.size() == l2_out.sharedSketchSize)
+            else if(slidingWindow.size() == bestSketchSize)
             {
-              searching = false;
+              if (!in_candidate) {
+                l2_out.sharedSketchSize = slidingWindow.size();
+                l2_out.optimalStart = windowStart;
+
+                //Save the position
+                beginOptimalPos = windowStart->wpos;
+              }
+
+              in_candidate = true;
               //Still save the position
               lastOptimalPos = windowStart->wpos; 
             } else {
-              searching = true;
+              if (in_candidate) {
+                // Save and reset
+                l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
+                l2_out.seqId = candidateLocus.seqId;
+                l2_vec_out.push_back(l2_out);
+                l2_out.strand = prev_strand_votes >= 0 ? skch::FWD : skch::REV;
+                l2_out = {};
+              }
+              in_candidate = false;
             }
+
+            prev_strand_votes = strand_votes;
             cwp = windowStart->wpos;
 
             //Advance the current super-window
@@ -661,21 +692,13 @@ namespace skch
             //if(windowStart->wpos > candidateLocus.rangeEndPos + Q.len || windowStart->seqId != candidateLocus.seqId)
               //break;
           }//End of while loop
-
-          //Save reference sequence id in the mapping output 
-          l2_out.seqId = candidateLocus.seqId;
-          l2_out.meanOptimalPos =  beginOptimalPos;
-
-          int strand_votes = 0;
-          windowStart = this->searchIndex(Q.seedHits, candidateLocus.seqId, std::max(l2_out.meanOptimalPos - Q.len, 0));
-          slidingWindow.clear();
-          while(windowStart != Q.seedHits.end() && windowStart->wpos <= l2_out.meanOptimalPos and windowStart->seqId == l2_out.seqId) {
-              if (windowStart->wpos_end > l2_out.meanOptimalPos) {
-                  strand_votes += windowStart->strand == skch::FWD ? 1 : -1;
-              }
-              windowStart++;
+          // Add leftover candidate 
+          if (in_candidate) {
+            // Save and reset
+            l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
+            l2_out.seqId = candidateLocus.seqId;
+            l2_vec_out.push_back(l2_out);
           }
-          l2_out.strand = strand_votes >= 0 ? skch::FWD : skch::REV;
         }
 
         struct compareMinimizersByPos
@@ -779,21 +802,24 @@ namespace skch
             //Which fragment is this wrt. the complete read
             uint32_t currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
 
-            if (it->conservedSketches < bestSketchSize[currMappingFragno]) {
-              it->discard = 1;
-            } else {
-                bestSketchSize[currMappingFragno] = it->conservedSketches;
+            if (it->conservedSketches > bestSketchSize[currMappingFragno]) {
+              bestSketchSize[currMappingFragno] = it->conservedSketches;
             }
           }
           for(auto it = readMappings.begin(); it != readMappings.end(); it++)
           {
             uint32_t currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
-            if (it->conservedSketches < bestSketchSize[currMappingFragno]) {
+            if (it->conservedSketches < .75*bestSketchSize[currMappingFragno]) {
+              //it->discard = 1;
               continue;
             }
             for(auto it2 = std::next(it); it2 != readMappings.end(); it2++)
             {
               auto thisMappingFragno = std::ceil(it2->queryStartPos * 1.0/ param.segLength);
+              if (it2->conservedSketches < bestSketchSize[thisMappingFragno]) {
+                //it->discard = 1;
+                continue;
+              }
 
               // If mappings are on different seqs or too far apart, stop looking
               if(it2->refSeqId != it->refSeqId || (it2->refStartPos - it->refEndPos) > param.segLength + 1)
@@ -850,6 +876,7 @@ namespace skch
               });
 
               //Mean identity of all mappings in the chain
+              //TODO some of these overlap, leading to inaccurate averages
               it->nucIdentity = (   std::accumulate(it, it_end, 0.0, 
                                     [](double x, MappingResult &e){ return x + e.nucIdentity; })     
                   )/ std::distance(it, it_end);
@@ -861,9 +888,16 @@ namespace skch
               it = it_end;
             }
 
+            //for (auto& m : readMappings) {
+              //std::cout << "Final mapping with " << m.conservedSketches << " shared sketcheds" << std::endl;
+            //}
             readMappings.erase( 
                 std::remove_if(readMappings.begin(), readMappings.end(), [&](MappingResult &e){ return e.discard == 1; }),
                 readMappings.end());
+            //std::cout << "AFTER\n";
+            //for (auto& m : readMappings) {
+              //std::cout << "Final mapping with " << m.conservedSketches << " shared sketcheds" << std::endl;
+            //}
           }
        }
 
