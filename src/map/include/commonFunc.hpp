@@ -382,15 +382,15 @@ namespace skch
         }
 
 #ifdef DEBUG
-        std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {
-            if (l.hash != r.hash) return l.hash < r.hash; else return l.wpos < r.wpos;});
-        auto prev_hash = 0;
-        for (auto iter = mashimizerIndex.begin() + 1; iter != mashimizerIndex.end(); iter++) {
-          if (iter->hash != (iter-1)->hash) {
-            continue;
-          }
-          assert((iter-1)->wpos_end <= iter->wpos);
-        }
+        //std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {
+            //if (l.hash != r.hash) return l.hash < r.hash; else return l.wpos < r.wpos;});
+        //auto prev_hash = 0;
+        //for (auto iter = mashimizerIndex.begin() + 1; iter != mashimizerIndex.end(); iter++) {
+          //if (iter->hash != (iter-1)->hash) {
+            //continue;
+          //}
+          //assert((iter-1)->wpos_end <= iter->wpos);
+        //}
 #endif 
 
         // TODO is this necessary?
@@ -401,21 +401,21 @@ namespace skch
             }),
             mashimizerIndex.end());
 #ifdef DEBUG
-        std::cout << "INFO, skch::CommonFunc::addMinimizers, inserted minimizers for sequence id = " << seqCounter << "\n";
-        std::cout << "INFO, skch::CommonFunc::addMinimizers, length of sequence  = " << len << "\n";
-        assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos >= 0;}));
-        assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos_end >= 0;}));
-        std::vector<MashimizerInfo> endpos_heap;
-        auto heap_cmp = [](auto& l, auto& r) {return l.wpos_end >= r.wpos_end;};
-        for (auto& mi : mashimizerIndex) {
-          while (!endpos_heap.empty() && endpos_heap.front().wpos_end <= mi.wpos) {
-            std::pop_heap(endpos_heap.begin(), endpos_heap.end(), heap_cmp); 
-            endpos_heap.pop_back();
-          }
-          endpos_heap.push_back(mi);
-          std::push_heap(endpos_heap.begin(), endpos_heap.end(), heap_cmp);
-          assert(endpos_heap.size() <= sketchSize);
-        }
+        //std::cout << "INFO, skch::CommonFunc::addMinimizers, inserted minimizers for sequence id = " << seqCounter << "\n";
+        //std::cout << "INFO, skch::CommonFunc::addMinimizers, length of sequence  = " << len << "\n";
+        //assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos >= 0;}));
+        //assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos_end >= 0;}));
+        //std::vector<MashimizerInfo> endpos_heap;
+        //auto heap_cmp = [](auto& l, auto& r) {return l.wpos_end >= r.wpos_end;};
+        //for (auto& mi : mashimizerIndex) {
+          //while (!endpos_heap.empty() && endpos_heap.front().wpos_end <= mi.wpos) {
+            //std::pop_heap(endpos_heap.begin(), endpos_heap.end(), heap_cmp); 
+            //endpos_heap.pop_back();
+          //}
+          //endpos_heap.push_back(mi);
+          //std::push_heap(endpos_heap.begin(), endpos_heap.end(), heap_cmp);
+          //assert(endpos_heap.size() <= sketchSize);
+        //}
 #endif
         //std::cout << "BEFORE " << mashimizerIndex.size() << "\n";
         //std::cout << "AFTER " << mashimizerIndex.size() << "\n";
