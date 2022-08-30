@@ -16,6 +16,7 @@ namespace skch
   typedef int offset_t;       //position within sequence
   typedef int seqno_t;        //sequence counter in file
   typedef int8_t strand_t;   //sequence strand 
+  typedef int8_t side_t;   //sequence strand 
 
   //C++ timer
   typedef std::chrono::high_resolution_clock Time;
@@ -76,6 +77,31 @@ namespace skch
         < std::tie(x.seqId, x.wpos, x.strand);
     }
   };
+
+  // Enum for tracking which side of an interval a point represents
+  enum side : side_t
+  {
+    OPEN = 1,  
+    CLOSE = -1
+  };  
+
+  // Endpoints for mashimizer intervals
+  struct IntervalPoint
+  {
+    side_t side;
+    seqno_t seqId;
+    offset_t pos;
+    strand_t strand;
+
+    // Sort interval points. 
+    // For a pair of points at the same seqId/pos, the end point should be first
+    bool operator <(const IntervalPoint& x) {
+      return std::tie(seqId, pos, side) 
+        < std::tie(x.seqId, x.pos, x.side);
+    }
+
+  };
+
 
   typedef hash_t MinimizerMapKeyType;
   typedef std::vector<MashimizerInfo> MinimizerMapValueType;

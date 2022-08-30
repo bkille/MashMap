@@ -262,6 +262,7 @@ namespace skch
               // wpos != -1 and wpos_end == -1 --> still in window
               if (sortedWindow[leaving_hash].first.wpos != -1 and sortedWindow[leaving_hash].first.wpos_end == -1 && sortedWindow[leaving_hash].second == 1) {
                 sortedWindow[leaving_hash].first.wpos_end = currentWindowId;
+                //sortedWindow[leaving_hash].first.strand = sortedWindow[leaving_hash].first.strand >= 0 ? strnd::FWD : strnd::REV;
                 mashimizerIndex.push_back(sortedWindow[leaving_hash].first);
               }
 
@@ -288,6 +289,16 @@ namespace skch
                 if (sortedWindow[currentKmer].second == 0) {
                     auto mi = MashimizerInfo{currentKmer, seqCounter, -1, -1, currentStrand};
                     sortedWindow[currentKmer].first = mi;
+                } else {
+                  //int prev_strand = sortedWindow[currentKmer].first.strand;
+                  //sortedWindow[currentKmer].first.strand += currentStrand;
+                  //if (prev_strand >= 0 && sortedWindow[currentKmer].first.strand < 0) {
+                    //sortedWindow[currentKmer].first.wpos_end = currentWindowId;
+                    //sortedWindow[currentKmer].first.strand = strnd::FWD;
+                    //mashimizerIndex.push_back(sortedWindow[currentKmer].first);
+                    //sortedWindow[currentKmer].first.wpos = currentWindowId;
+                    //sortedWindow[currentKmer].first.wpos_end = -1;
+                  //}
                 }
                 sortedWindow[currentKmer].second += 1;
             }
@@ -331,7 +342,7 @@ namespace skch
                 if (border_mi_it.wpos != -1 && border_mi_it.wpos_end == -1) {
                   border_mi_it.wpos_end = currentWindowId;
                   mashimizerIndex.push_back(
-                          MashimizerInfo{border_mi_it.hash, border_mi_it.seqId, border_mi_it.wpos, border_mi_it.wpos_end, border_mi_it.strand});
+                          MashimizerInfo{border_mi_it.hash, border_mi_it.seqId, border_mi_it.wpos, border_mi_it.wpos_end, border_mi_it.strand >= 0 ? strnd::FWD : strnd::REV});
                   // resest mi info
                   border_mi_it.wpos = -1;
                   border_mi_it.wpos_end = -1;
@@ -375,6 +386,7 @@ namespace skch
         while (iter != sortedWindow.end() && rank <= sketchSize) {
           if (iter->second.first.wpos != -1) {
             iter->second.first.wpos_end = len - kmerSize + 1;
+            //iter->second.first.strand = iter->second.first.strand >= 0 ? strnd::FWD : strnd::REV;
             mashimizerIndex.push_back(iter->second.first);
           }
           std::advance(iter, 1);
