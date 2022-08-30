@@ -228,7 +228,7 @@ namespace skch
           // [hash value -> info about minimizer]
 #ifdef DEBUG
           if (!minimizerPosLookupIndex[e.hash].empty() && e.seqId == minimizerPosLookupIndex[e.hash].back().seqId) {
-              assert(minimizerPosLookupIndex[e.hash].back().wpos_end < e.wpos);
+              assert(minimizerPosLookupIndex[e.hash].back().wpos_end <= e.wpos);
           }
               
 #endif
