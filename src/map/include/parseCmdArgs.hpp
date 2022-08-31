@@ -68,6 +68,12 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
     cmd.defineOption("output", "output file name [default : mashmap.out]", ArgvParser::OptionRequiresValue);
     cmd.defineOptionAlternative("output","o");
 
+    cmd.defineOption("save_index", "output file name for reference index", ArgvParser::OptionRequiresValue);
+    cmd.defineOptionAlternative("save_index","si");
+
+    cmd.defineOption("use_index", "input file name for reference index", ArgvParser::OptionRequiresValue);
+    cmd.defineOptionAlternative("use_index","ui");
+
     cmd.defineOption("kmer", "kmer size <= 16 [default : 16]", ArgvParser::OptionRequiresValue);
     cmd.defineOptionAlternative("kmer","k");
 
@@ -357,6 +363,23 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
     else
       parameters.outFileName = "mashmap.out";
 
+    if(cmd.foundOption("save_index"))
+    {
+      str << cmd.optionValue("save_index");
+      str >> parameters.outIndex;
+      str.clear();
+    }
+    else
+      parameters.outIndex = "";
+
+    if(cmd.foundOption("use_index"))
+    {
+      str << cmd.optionValue("use_index");
+      str >> parameters.indexFileName;
+      str.clear();
+    }
+    else
+      parameters.indexFileName = "";
 
     printCmdOptions(parameters);
 

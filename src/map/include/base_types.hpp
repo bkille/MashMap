@@ -64,6 +64,12 @@ namespace skch
        : MinimizerInfo{hash_, seqId_, wpos_, strand_}, wpos_end(wpos_end_) {};
   };
 
+  template <class ostream>
+  ostream& operator<< (ostream& os, const MashimizerInfo& mi) {
+    os << mi.seqId <<  "\t" << std::to_string(mi.strand) << "\t" << mi.wpos << "\t" << mi.wpos_end << "\t" << mi.hash;
+    return os;
+  };
+
   //Type for map value type used for
   //L1 stage lookup index
   struct MinimizerMetaData
@@ -77,6 +83,11 @@ namespace skch
         < std::tie(x.seqId, x.wpos, x.strand);
     }
   };
+
+  //ostream& operator<< (ostream& os, const MinimizerMetaData& mi) {
+    //os << mi.seqId <<  "\t" << std::to_string(mi.strand) << "\t" << mi.wpos << "\t" << mi.wpos_end << "\t" << mi.hash;
+    //return os;
+  //};
 
   // Enum for tracking which side of an interval a point represents
   enum side : side_t
@@ -117,6 +128,7 @@ namespace skch
   enum strnd : strand_t
   {
     FWD = 1,  
+    AMBIG = 0,
     REV = -1
   };  
 

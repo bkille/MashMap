@@ -30,6 +30,8 @@ namespace skch
     std::vector<std::string> refSequences;            //reference sequence(s)
     std::vector<std::string> querySequences;          //query sequence(s)
     std::string outFileName;                          //output file name
+    std::string outIndex;                             //output file name for index
+    std::string indexFileName;                        //input index file name
     bool split;                                       //Split read mapping (done if this is true)
     bool noChain;                                     //Chaining (not chained if true) 
   };

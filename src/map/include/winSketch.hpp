@@ -21,6 +21,7 @@
 #include "map/include/ThreadPool.hpp"
 
 //External includes
+#include "common/csv.h"
 #include "common/kseq.h"
 #include "common/murmur3.h"
 #include "common/prettyprint.hpp"
@@ -106,12 +107,65 @@ namespace skch
       Sketch(const skch::Parameters &p) 
         :
           param(p) {
-            this->build();
+            if (p.indexFileName != "") {
+              this->build(p.indexFileName);
+            } else {
+              this->build();
+            }
             this->index();
             this->computeFreqHist();
+
+            if (p.outIndex != "") {
+              this->write(p.outIndex);
+            }
           }
 
       private:
+
+      /**
+       * @brief     build the sketch table
+       * @details   compute and save minimizers from the reference sequence(s)
+       *            assuming a fixed window size
+       */
+      void build(std::string indexFileName)
+      {
+        this->read(indexFileName);
+        seqno_t seqCounter = 0;
+        for(const auto &fileName : param.refSequences)
+        {
+          //Open the file using kseq
+          gzFile fp = gzopen(fileName.c_str(), "r");
+          kseq_t *seq = kseq_init(fp);
+
+
+          //size of sequence
+          offset_t len;
+
+          while ((len = kseq_read(seq)) >= 0) 
+          {
+            //Save the sequence name
+            metadata.push_back( ContigInfo{seq->name.s, (offset_t)seq->seq.l} );
+
+            //Is the sequence too short?
+            if(len < param.windowSize || len < param.kmerSize)
+            {
+#ifdef DEBUG
+              std::cout << "WARNING, skch::Sketch::build, found an unusually short sequence relative to kmer and window size" << std::endl;
+#endif
+              seqCounter++;
+              continue;  
+            }
+            else
+            seqCounter++;
+          }
+
+          sequencesByFileInfo.push_back(seqCounter);
+
+          kseq_destroy(seq);  
+          gzclose(fp); //close the file handler 
+        }
+
+      }
 
       /**
        * @brief     build the sketch table
@@ -236,6 +290,29 @@ namespace skch
         }
 
         std::cout << "INFO, skch::Sketch::index, unique minimizers = " << minimizerPosLookupIndex.size() << std::endl;
+      }
+
+      void write(std::string indexFileName) {
+        std::ofstream outStream;
+        outStream.open(indexFileName);
+        outStream << "seqId" << "\t" << "strand" << "\t" << "start" << "\t" << "end" << "\t" << "hash" << std::endl;
+        for (auto& mi : mashimizerIndex) {
+          outStream << mi.seqId << "\t" << std::to_string(mi.strand) << "\t" << mi.wpos << "\t" << mi.wpos_end << "\t" << mi.hash << std::endl;
+        }
+        outStream.close(); 
+      }
+
+      void read(std::string indexFileName) {
+        io::CSVReader<5, io::trim_chars<' '>, io::no_quote_escape<'\t'>> inReader(indexFileName);
+        inReader.read_header(io::ignore_missing_column, "seqId", "strand", "start", "end", "hash");
+        hash_t hash;
+        offset_t start, end;
+        strand_t strand;
+        seqno_t seqId;
+        while (inReader.read_row(seqId, strand, start, end, hash))
+        {
+          mashimizerIndex.push_back(MashimizerInfo {hash, seqId, start, end, strand});
+        }
       }
 
       /**
