@@ -383,6 +383,11 @@ namespace skch
           std::cout << "INFO, skch::Map::getSeedHits, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << " " << Q.len << "\n";
 #endif
 
+          std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
+          for (auto& mi: Q.minimizerTableQuery) {
+            std::cout << mi << std::endl;
+          }
+
           ///2. Find the hits in the reference, pick 's' unique minimizers as seeds, 
 
           //std::sort(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::lessByHash);
@@ -416,9 +421,9 @@ namespace skch
                 // Let the strand of the hits denote wrt the reference. 
                 // i.e. if - query mashimizer hits a - ref mashimizer, we mark the strand as fwd. 
                 std::for_each(hitPositionList.begin(), hitPositionList.end(), [&](auto& mi) {
-                    mi.strand = mi.strand * it->strand;
-                    intervalPoints.push_back(IntervalPoint {side::OPEN, mi.seqId, mi.wpos, mi.strand});
-                    intervalPoints.push_back(IntervalPoint {side::CLOSE, mi.seqId, mi.wpos_end, mi.strand});
+                    //mi.strand = mi.strand * it->strand;
+                    intervalPoints.push_back(IntervalPoint {side::OPEN, mi.seqId, mi.wpos, strand_t(mi.strand * it->strand)});
+                    intervalPoints.push_back(IntervalPoint {side::CLOSE, mi.seqId, mi.wpos_end, strand_t(mi.strand * it->strand)});
                 });
               }
             }
@@ -494,7 +499,7 @@ namespace skch
           }
 
 #ifdef DEBUG
-          std::cout << "INFO, skch::Map:doL2Mapping, read id " << Q.seqCounter << ", count of L1 candidates= " << l1Mappings.size() << ", count of L2 candidates= " << l2Mappings.size() << std::endl;
+          //std::cout << "INFO, skch::Map:doL2Mapping, read id " << Q.seqCounter << ", count of L1 candidates= " << l1Mappings.size() << ", count of L2 candidates= " << l2Mappings.size() << std::endl;
 #endif
         }
 
@@ -510,7 +515,7 @@ namespace skch
             std::vector<L2_mapLocus_t> &l2_vec_out)
         {
 //#ifdef DEBUG
-          std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
+          //std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
 //#endif
           int strand_votes = 0;
           int overlapCount = 0;
@@ -525,42 +530,46 @@ namespace skch
             const IntervalPoint& ip = intervalPoints[i];
             overlapCount += ip.side;
             
-            //Is this sliding window the best we have so far?
-            if (overlapCount > bestSketchSize)
+            if (i == intervalPoints.size() - 1 || ip.pos != intervalPoints[i+1].pos) 
             {
-              in_candidate = true;
-              bestSketchSize = overlapCount;
-              l2_out.sharedSketchSize = overlapCount;
-
-              //Save the position
-              beginOptimalPos = ip.pos;
-              lastOptimalPos = ip.pos;
-            }
-            else if(overlapCount == bestSketchSize)
-            {
-              if (!in_candidate) {
+              //Is this sliding window the best we have so far?
+              if (overlapCount > bestSketchSize)
+              {
+                in_candidate = true;
+                bestSketchSize = overlapCount;
                 l2_out.sharedSketchSize = overlapCount;
 
                 //Save the position
                 beginOptimalPos = ip.pos;
+                lastOptimalPos = ip.pos;
               }
+              else if(overlapCount == bestSketchSize)
+              {
+                if (!in_candidate) {
+                  l2_out.sharedSketchSize = overlapCount;
 
-              in_candidate = true;
-              //Still save the position
-              lastOptimalPos = ip.pos;
-            } else {
-              if (in_candidate) {
-                // Save and reset
-                l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
-                l2_out.seqId = ip.seqId;
-                l2_out.strand = strand_votes >= 0 ? strnd::FWD : strnd::REV;
-                l2_vec_out.push_back(l2_out);
-                l2_out = {};
+                  //Save the position
+                  beginOptimalPos = ip.pos;
+                }
+
+                in_candidate = true;
+                //Still save the position
+                lastOptimalPos = ip.pos;
+              } else {
+                if (in_candidate) {
+                  // Save and reset
+                  l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
+                  l2_out.seqId = ip.seqId;
+                  l2_out.strand = strand_votes >= 0 ? strnd::FWD : strnd::REV;
+                  l2_vec_out.push_back(l2_out);
+                  l2_out = {};
+                }
+                in_candidate = false;
               }
-              in_candidate = false;
             }
 
             strand_votes += ip.strand * ip.side;
+            //std::cout << overlapCount << ", " << strand_votes << "\t" << (ip.side == side::OPEN ? "OPEN " : "CLOSE") << " @ " << std::to_string(ip.strand) << ", " << ip.pos << "\t" << std::endl;
           }//End of while loop
 
           // Should be leftover candidate 
