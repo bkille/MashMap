@@ -66,7 +66,7 @@ namespace skch
 
   template <class ostream>
   ostream& operator<< (ostream& os, const MashimizerInfo& mi) {
-    os << mi.seqId <<  "\t" << std::to_string(mi.strand) << "\t" << mi.wpos << "\t" << mi.wpos_end << "\t" << mi.hash;
+    os << mi.seqId <<  "\t" << std::to_string(static_cast<int>(mi.strand)) << "\t" << mi.wpos << "\t" << mi.wpos_end << "\t" << mi.hash;
     return os;
   };
 
@@ -111,6 +111,12 @@ namespace skch
         < std::tie(x.seqId, x.pos, x.side);
     }
 
+  };
+
+  template <class ostream>
+  ostream& operator<< (ostream& os, const IntervalPoint& mi) {
+    os << mi.seqId <<  "\t" << std::to_string(mi.strand) << "\t" << mi.pos << "\t" << (mi.side == side::OPEN ? "OPEN" : "CLOSE");
+    return os;
   };
 
 

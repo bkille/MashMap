@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <map>
+#include <unordered_set>
 #include <cassert>
 #include <zlib.h>  
 
@@ -55,6 +56,9 @@ namespace skch
 
       //Minimizers that occur this or more times will be ignored (computed based on percentageThreshold)
       int freqThreshold = std::numeric_limits<int>::max();
+
+      //Set of frequent seeds to be ignored
+      std::unordered_set<hash_t> frequentSeeds;
 
       //Make the default constructor private, non-accessible
       Sketch();
@@ -114,7 +118,7 @@ namespace skch
             }
             this->index();
             this->computeFreqHist();
-
+            this->computeFreqSeedSet();
             if (p.outIndex != "") {
               this->write(p.outIndex);
             }
@@ -363,6 +367,18 @@ namespace skch
 
       }
 
+      /**
+       * @brief     Construct a set of all hashes that appear above the threshold
+       */
+      void computeFreqSeedSet()
+      {
+        for(auto &e : this->minimizerPosLookupIndex) {
+          if (e.second.size() >= this->freqThreshold) {
+            this->frequentSeeds.insert(e.first);
+          }
+        }
+      }
+
       public:
 
       /**
@@ -406,6 +422,11 @@ namespace skch
       int getFreqThreshold() const
       {
         return this->freqThreshold;
+      }
+
+      bool isFreqSeed(hash_t h) const
+      {
+        return frequentSeeds.find(h) != frequentSeeds.end();
       }
 
       private:

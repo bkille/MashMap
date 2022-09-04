@@ -28,6 +28,7 @@
 #include "map/include/filter.hpp"
 
 //External includes
+#include "assert.hpp"
 
 namespace skch
 {
@@ -383,31 +384,24 @@ namespace skch
           std::cout << "INFO, skch::Map::getSeedHits, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << " " << Q.len << "\n";
 #endif
 
-          std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
-          for (auto& mi: Q.minimizerTableQuery) {
-            std::cout << mi << std::endl;
-          }
-
-          ///2. Find the hits in the reference, pick 's' unique minimizers as seeds, 
-
-          //std::sort(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::lessByHash);
-
-          //note : unique preserves the original relative order of elements 
-          //auto uniqEndIter = std::unique(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), MinimizerInfo::equalityByHash);
-
-          //This is the sketch size for estimating jaccard
-          //Q.sketchSize = std::distance(Q.minimizerTableQuery.begin(), uniqEndIter);
-          Q.sketchSize = param.sketchSize;
-
           //For invalid query (example : just NNNs), we may be left with 0 sketch size
           //Ignore the query in this case
-          if(Q.sketchSize == 0)
+          if(Q.minimizerTableQuery.size() == 0)
             return;
 
+          //for (auto& mi : Q.minimizerTableQuery) 
+            //std::cout << mi << std::endl;
+
           int totalMinimizersPicked = 0;
+          
+          int freqSeeds = 0;
 
           for(auto it = Q.minimizerTableQuery.begin(); it != Q.minimizerTableQuery.end(); it++)
           {
+            if (refSketch.isFreqSeed(it->hash)) {
+              freqSeeds++;
+              continue;
+            }
             //Check if hash value exists in the reference lookup index
             auto seedFind = refSketch.minimizerPosLookupIndex.find(it->hash);
 
@@ -428,13 +422,20 @@ namespace skch
               }
             }
           }
+
+          // Set the sketch size after removing too-fequent hits
+          Q.sketchSize = Q.minimizerTableQuery.size() - freqSeeds;
+          if(Q.sketchSize == 0)
+            return;
+
           //Sort all the hit positions
           std::sort(intervalPoints.begin(), intervalPoints.end());
 
 #ifdef DEBUG
-          //std::cout << "INFO, " << Q.sketchSize << std::endl;
           std::cout << "INFO, skch::Map:doL1Mapping, read id " << Q.seqCounter << ", Count of L1 hits in the reference = " << intervalPoints.size() / 2 << "\n";
 #endif
+          //for (auto& pi : intervalPoints) 
+            //std::cout << pi << std::endl;
 
         }
 
@@ -562,15 +563,17 @@ namespace skch
                   l2_out.seqId = ip.seqId;
                   l2_out.strand = strand_votes >= 0 ? strnd::FWD : strnd::REV;
                   l2_vec_out.push_back(l2_out);
-                  l2_out = {};
+                  l2_out = L2_mapLocus_t();
                 }
                 in_candidate = false;
               }
             }
 
             strand_votes += ip.strand * ip.side;
-            //std::cout << overlapCount << ", " << strand_votes << "\t" << (ip.side == side::OPEN ? "OPEN " : "CLOSE") << " @ " << std::to_string(ip.strand) << ", " << ip.pos << "\t" << std::endl;
+            //std::cout << overlapCount << ", " << strand_votes << "\t" << (ip.side == side::OPEN ? "OPEN " : "CLOSE") << " @ " << std::to_string(ip.strand) << ", " << ip.seqId << ":" << ip.pos << "\t" << std::endl;
           }//End of while loop
+          DEBUG_ASSERT(overlapCount >= 0);
+          DEBUG_ASSERT(overlapCount <= Q.sketchSize);
 
           // Should be leftover candidate 
           assert(!in_candidate);
@@ -669,7 +672,7 @@ namespace skch
           }
 
           // Keep track of best sketches
-          std::vector<uint64_t> bestSketchSize(std::ceil(readMappings[0].queryLen / (float)param.segLength));
+          std::vector<float> bestSketchSizeProp(std::ceil(readMappings[0].queryLen / (float)param.segLength));
 
           //Start the procedure to identify the chains
           for(auto it = readMappings.begin(); it != readMappings.end(); it++)
@@ -677,27 +680,27 @@ namespace skch
             //Which fragment is this wrt. the complete read
             uint32_t currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
 
-            if (it->conservedSketches > bestSketchSize[currMappingFragno]) {
-              bestSketchSize[currMappingFragno] = it->conservedSketches;
+            if (static_cast<float>(it->conservedSketches) / it->sketchSize > bestSketchSizeProp[currMappingFragno]) {
+              bestSketchSizeProp[currMappingFragno] = static_cast<float>(it->conservedSketches) / it->sketchSize;
             }
           }
           for(auto it = readMappings.begin(); it != readMappings.end(); it++)
           {
             uint32_t currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
-            if (it->conservedSketches < .75*bestSketchSize[currMappingFragno]) {
+            if (static_cast<float>(it->conservedSketches) / it->sketchSize < .75*bestSketchSizeProp[currMappingFragno]) {
               //it->discard = 1;
               continue;
             }
             for(auto it2 = std::next(it); it2 != readMappings.end(); it2++)
             {
               auto thisMappingFragno = std::ceil(it2->queryStartPos * 1.0/ param.segLength);
-              if (it2->conservedSketches < bestSketchSize[thisMappingFragno]) {
+              if (static_cast<float>(it2->conservedSketches) / it->sketchSize  < bestSketchSizeProp[thisMappingFragno]) {
                 //it->discard = 1;
                 continue;
               }
 
               // If mappings are on different seqs or too far apart, stop looking
-              if(it2->refSeqId != it->refSeqId || (it2->refStartPos - it->refEndPos) > param.segLength + 1)
+              if(it2->refSeqId != it->refSeqId || std::abs(it2->refStartPos - it->refEndPos) > param.segLength + 1)
                   break;
              
               // Check if it is consecutive query fragment and strand matches
