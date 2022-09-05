@@ -407,19 +407,15 @@ namespace skch
 
             if(seedFind != refSketch.minimizerPosLookupIndex.end())
             {
-              auto hitPositionList = seedFind->second;
+              auto& hitPositionList = seedFind->second;
 
-              //Save the positions (Ignore high frequency hits)
-              if(hitPositionList.size() < refSketch.getFreqThreshold())
-              {
-                // Let the strand of the hits denote wrt the reference. 
-                // i.e. if - query mashimizer hits a - ref mashimizer, we mark the strand as fwd. 
-                std::for_each(hitPositionList.begin(), hitPositionList.end(), [&](auto& mi) {
-                    //mi.strand = mi.strand * it->strand;
-                    intervalPoints.push_back(IntervalPoint {side::OPEN, mi.seqId, mi.wpos, strand_t(mi.strand * it->strand)});
-                    intervalPoints.push_back(IntervalPoint {side::CLOSE, mi.seqId, mi.wpos_end, strand_t(mi.strand * it->strand)});
-                });
-              }
+              // Let the strand of the hits denote wrt the reference. 
+              // i.e. if - query mashimizer hits a - ref mashimizer, we mark the strand as fwd. 
+              std::for_each(hitPositionList.begin(), hitPositionList.end(), [&](auto& mi) {
+                  //mi.strand = mi.strand * it->strand;
+                  intervalPoints.push_back(IntervalPoint {side::OPEN, mi.seqId, mi.wpos, strand_t(mi.strand * it->strand)});
+                  intervalPoints.push_back(IntervalPoint {side::CLOSE, mi.seqId, mi.wpos_end, strand_t(mi.strand * it->strand)});
+              });
             }
           }
 
@@ -559,6 +555,7 @@ namespace skch
               } else {
                 if (in_candidate) {
                   // Save and reset
+                  lastOptimalPos = ip.pos;
                   l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
                   l2_out.seqId = ip.seqId;
                   l2_out.strand = strand_votes >= 0 ? strnd::FWD : strnd::REV;
@@ -571,12 +568,20 @@ namespace skch
 
             strand_votes += ip.strand * ip.side;
             //std::cout << overlapCount << ", " << strand_votes << "\t" << (ip.side == side::OPEN ? "OPEN " : "CLOSE") << " @ " << std::to_string(ip.strand) << ", " << ip.seqId << ":" << ip.pos << "\t" << std::endl;
+            DEBUG_ASSERT(overlapCount >= 0);
+            DEBUG_ASSERT(overlapCount <= Q.sketchSize);
           }//End of while loop
-          DEBUG_ASSERT(overlapCount >= 0);
-          DEBUG_ASSERT(overlapCount <= Q.sketchSize);
 
-          // Should be leftover candidate 
-          assert(!in_candidate);
+          if (in_candidate) {
+            // Save and reset
+            auto& ip = intervalPoints.back();
+            lastOptimalPos = ip.pos;
+            l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
+            l2_out.seqId = ip.seqId;
+            l2_out.strand = strand_votes >= 0 ? strnd::FWD : strnd::REV;
+            l2_vec_out.push_back(l2_out);
+          }
+
         }
 
         struct compareMinimizersByPos
@@ -657,7 +662,7 @@ namespace skch
             return;
 
           // Split reads must be nearly adjacent in order to be chained
-          uint32_t cutoffDistance = 5.0 * (param.segLength / (double)param.sketchSize);
+          uint32_t cutoffDistance = 3.0 * (param.segLength / (double)param.sketchSize);
 
           //Sort the mappings by reference position
           std::sort(readMappings.begin(), readMappings.end(), [](const MappingResult &a, const MappingResult &b)  
@@ -687,14 +692,14 @@ namespace skch
           for(auto it = readMappings.begin(); it != readMappings.end(); it++)
           {
             uint32_t currMappingFragno = std::ceil(it->queryStartPos * 1.0/param.segLength);
-            if (static_cast<float>(it->conservedSketches) / it->sketchSize < .75*bestSketchSizeProp[currMappingFragno]) {
+            if (static_cast<float>(it->conservedSketches) / it->sketchSize < .99*bestSketchSizeProp[currMappingFragno]) {
               //it->discard = 1;
               continue;
             }
             for(auto it2 = std::next(it); it2 != readMappings.end(); it2++)
             {
               auto thisMappingFragno = std::ceil(it2->queryStartPos * 1.0/ param.segLength);
-              if (static_cast<float>(it2->conservedSketches) / it->sketchSize  < bestSketchSizeProp[thisMappingFragno]) {
+              if (static_cast<float>(it2->conservedSketches) / it->sketchSize  < .99*bestSketchSizeProp[thisMappingFragno]) {
                 //it->discard = 1;
                 continue;
               }

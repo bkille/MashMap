@@ -213,7 +213,7 @@ namespace skch
          */
 
 
-        std::deque< std::pair<hash_t, offset_t> > Q;
+        std::deque< std::tuple<hash_t, strand_t, offset_t> > Q;
         using windowMap_t = std::map<hash_t, std::pair<MashimizerInfo, uint64_t>>;
         windowMap_t sortedWindow;
         Pivot<typename windowMap_t::iterator>  piv = {sortedWindow.begin(), 0};
@@ -250,8 +250,12 @@ namespace skch
             hashBwd = CommonFunc::getHash(seqRev.get() + len - i - kmerSize, kmerSize);
           else  //proteins
             hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
+
+          //Take minimum value of kmer and its reverse complement
           hash_t currentKmer = std::min(hashFwd, hashBwd);
 
+          //Check the strand of this minimizer hash value
+          auto currentStrand = hashFwd < hashBwd ? strnd::FWD : strnd::REV;
 
 
           //std::cout << std::endl << currentWindowId << "\t" << currentKmer << std::endl;
@@ -264,8 +268,8 @@ namespace skch
           DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
 
           //If front minimum is not in the current window, remove it
-          if (!Q.empty() && Q.front().second <  currentWindowId) {
-            const hash_t leaving_hash = Q.front().first;
+          if (!Q.empty() && std::get<2>(Q.front()) <  currentWindowId) {
+            const auto [leaving_hash, leaving_strand, _] = Q.front();
 
             // Check if we've deleted the hash already
             if (sortedWindow.find(leaving_hash) != sortedWindow.end()) {
@@ -293,6 +297,16 @@ namespace skch
                   }
                 }
                 sortedWindow.erase(leaving_hash);
+              } else {
+                // Not removing hash, but need to adjust the strand
+                if ((sortedWindow[leaving_hash].first.strand == 0 || sortedWindow[leaving_hash].first.strand - leaving_strand == 0)
+                    && leaving_hash < piv.p->first) {
+                  sortedWindow[leaving_hash].first.wpos_end = currentWindowId;
+                  mashimizerIndex.push_back(sortedWindow[leaving_hash].first);
+                  sortedWindow[leaving_hash].first.wpos = currentWindowId;
+                  sortedWindow[leaving_hash].first.wpos_end = -1;
+                }
+                sortedWindow[leaving_hash].first.strand -= leaving_strand;
               }
             }
             Q.pop_front();
@@ -302,17 +316,10 @@ namespace skch
           //Consider non-symmetric kmers only
           if(hashBwd != hashFwd)
           {
-            //Take minimum value of kmer and its reverse complement
-
-            //Check the strand of this minimizer hash value
-            auto currentStrand = hashFwd < hashBwd ? strnd::FWD : strnd::REV;
-
-
-
             // Add current hash to window
-            Q.push_back(std::make_pair(currentKmer, i)); 
+            Q.push_back(std::make_tuple(currentKmer, currentStrand, i)); 
             if (sortedWindow[currentKmer].second == 0) {
-                auto mi = MashimizerInfo{currentKmer, seqCounter, -1, -1, 0};
+                auto mi = MashimizerInfo{currentKmer, seqCounter, -1, -1, currentStrand};
                 sortedWindow[currentKmer].first = mi;
 
                 if (sortedWindow.size() >= sketchSize + 2 && currentKmer < piv.p->first) {
@@ -323,10 +330,16 @@ namespace skch
                 } else if (sortedWindow.size() == sketchSize + 1) {
                     piv.p = std::prev(sortedWindow.end());
                 }
+            } else {
+              if ((sortedWindow[currentKmer].first.strand + currentStrand == 0 || sortedWindow[currentKmer].first.strand == 0) 
+                  && currentKmer < piv.p->first) {
+                sortedWindow[currentKmer].first.wpos_end = currentWindowId;
+                mashimizerIndex.push_back(sortedWindow[currentKmer].first);
+                sortedWindow[currentKmer].first.wpos = currentWindowId;
+                sortedWindow[currentKmer].first.wpos_end = -1;
+              }
+              sortedWindow[currentKmer].first.strand += currentStrand;
             }
-            sortedWindow[currentKmer].first.strand += currentStrand;
-            sortedWindow[currentKmer].first.strand = std::min<int>(sortedWindow[currentKmer].first.strand, 5);
-            sortedWindow[currentKmer].first.strand = std::max<int>(sortedWindow[currentKmer].first.strand, -5);
             sortedWindow[currentKmer].second += 1;
           }
 
@@ -403,14 +416,17 @@ namespace skch
         while (iter != sortedWindow.end() && rank <= sketchSize) {
           if (iter->second.first.wpos != -1) {
             iter->second.first.wpos_end = len - kmerSize + 1;
-            iter->second.first.strand = iter->second.first.strand < 0 ? (iter->second.first.strand == 0 ? strnd::AMBIG : strnd::REV) : strnd::FWD;
             mashimizerIndex.push_back(iter->second.first);
           }
           std::advance(iter, 1);
           rank += 1;
         }
-
+        std::for_each(mashimizerIndex.begin(), mashimizerIndex.end(), [] (auto& mi) {
+          mi.strand = mi.strand < 0 ? (mi.strand == 0 ? strnd::AMBIG : strnd::REV) : strnd::FWD;
+        });
         std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {return l.wpos < r.wpos;});
+
+        // TODO assert that this is false
         mashimizerIndex.erase(std::unique(mashimizerIndex.begin(), mashimizerIndex.end(), 
                     [](auto& l, auto& r) {
                         return (l.wpos == r.wpos) && (l.hash == r.hash);
