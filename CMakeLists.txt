@@ -1,4 +1,4 @@
-set(DEBUG_FLAGS -O2 -g -fno-omit-frame-pointer -pg -DDEBUG)
+set(DEBUG_FLAGS -O2 -g -fno-omit-frame-pointer -pg -DDEBUG -fsanitize=address)
 set(PROD_FLAGS -O2 -g)
 # specify the C++ standard
 cmake_minimum_required(VERSION 3.14)
@@ -17,7 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE RelWDebInfo)
 
 # set up linters/checkers
 #set(CMAKE_CXX_CPPCHECK cppcheck;--std=c++17;--file-filter=*bitlib*)
@@ -74,7 +74,7 @@ target_compile_options(mashmap-align-debug PUBLIC ${DEBUG_FLAGS})
 
 # specify debugging libraries
 include_directories(src/)
-target_link_libraries(mashmap-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread assert)
+target_link_libraries(mashmap-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread assert -fsanitize=address)
 target_link_libraries(mashmap-align-debug PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread -fsanitize=address)
 
 install(TARGETS mashmap-debug DESTINATION .)

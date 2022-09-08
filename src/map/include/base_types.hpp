@@ -103,6 +103,7 @@ namespace skch
     seqno_t seqId;
     offset_t pos;
     strand_t strand;
+    hash_t hash;
 
     // Sort interval points. 
     // For a pair of points at the same seqId/pos, the end point should be first

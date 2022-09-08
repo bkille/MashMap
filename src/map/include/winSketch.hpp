@@ -89,6 +89,9 @@ namespace skch
       using MI_Map_t = google::dense_hash_map< MinimizerMapKeyType, MinimizerMapValueType >;
       MI_Map_t minimizerPosLookupIndex;
 
+      std::vector<IntervalPoint> sortedOpenPoints;
+      std::vector<IntervalPoint> sortedClosePoints;
+
       private:
 
       /**
@@ -285,13 +288,19 @@ namespace skch
         {
           // [hash value -> info about minimizer]
 #ifdef DEBUG
-          if (!minimizerPosLookupIndex[e.hash].empty() && e.seqId == minimizerPosLookupIndex[e.hash].back().seqId) {
-              assert(minimizerPosLookupIndex[e.hash].back().wpos_end <= e.wpos);
-          }
+          //if (!minimizerPosLookupIndex[e.hash].empty() && e.seqId == minimizerPosLookupIndex[e.hash].back().seqId) {
+              //assert(minimizerPosLookupIndex[e.hash].back().wpos_end <= e.wpos);
+          //}
               
 #endif
+          if ( !param.split ) {
+            sortedOpenPoints.push_back(IntervalPoint{side::OPEN, e.seqId, e.wpos, e.strand, e.hash});
+            sortedClosePoints.push_back(IntervalPoint{side::CLOSE, e.seqId, e.wpos_end, e.strand, e.hash});
+          }
           minimizerPosLookupIndex[e.hash].push_back(e);
         }
+        //std::sort(sortedOpenPoints.begin(), sortedOpenPoints.end());
+        std::sort(sortedClosePoints.begin(), sortedClosePoints.end());
 
         std::cout << "INFO, skch::Sketch::index, unique minimizers = " << minimizerPosLookupIndex.size() << std::endl;
       }

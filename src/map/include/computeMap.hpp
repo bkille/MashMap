@@ -337,16 +337,19 @@ namespace skch
           auto t0 = skch::Time::now();
 #endif
           //Get seed hits
-          std::vector<skch::IntervalPoint> intervalPoints; 
-          getSeedHits(Q, intervalPoints);
-
-#ifdef ENABLE_TIME_PROFILE_L1_L2
-          std::chrono::duration<double> timeSpentL1 = skch::Time::now() - t0;
-          auto t1 = skch::Time::now();
-#endif
+          getSeedHits(Q);
 
           //Mapping
-          doMapping(Q, intervalPoints, l2Mappings);
+          std::vector<L2_mapLocus_t> temp_L2_mappings;
+          if (param.split) {
+            std::vector<skch::IntervalPoint> intervalPoints; 
+            getSeedIntervalPoints(Q, intervalPoints);
+            computeSplitMappedRegions(Q, intervalPoints, temp_L2_mappings);
+          } else {
+            computeFullReadMappedRegions(Q, refSketch.sortedOpenPoints, refSketch.sortedClosePoints, temp_L2_mappings);
+          }
+
+          addL2MappingMetadata(Q, temp_L2_mappings, l2Mappings);
 
 
 #ifdef ENABLE_TIME_PROFILE_L1_L2
@@ -363,6 +366,24 @@ namespace skch
 #endif
         }
 
+      template <typename Q_Info>
+        void getSeedHits(Q_Info &Q)
+        {
+          CommonFunc::sketchSequence(Q.minimizerTableQuery, Q.seq, Q.len, param.kmerSize, param.alphabetSize, param.sketchSize, Q.seqCounter);
+          if(Q.minimizerTableQuery.size() == 0)
+            return;
+
+          //for (auto& mi : Q.minimizerTableQuery) 
+            //std::cout << mi << std::endl;
+
+          auto new_end = std::remove_if(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), [&](auto mi) {
+            return refSketch.isFreqSeed(mi.hash);
+          });
+          Q.minimizerTableQuery.erase(new_end, Q.minimizerTableQuery.end());
+
+          Q.sketchSize = Q.minimizerTableQuery.size();
+        } 
+
       /**
        * @brief       Find candidate regions for a read using level 1 (seed-hits) mapping
        * @details     The count of hits that should occur within a region on the reference is 
@@ -374,11 +395,8 @@ namespace skch
        * @param[out]  l1Mappings                all the read mapping locations
        */
       template <typename Q_Info, typename Vec>
-        void getSeedHits(Q_Info &Q, Vec& intervalPoints)
+        void getSeedIntervalPoints(Q_Info &Q, Vec& intervalPoints)
         {
-
-          ///1. Compute the minimizers
-          CommonFunc::sketchSequence(Q.minimizerTableQuery, Q.seq, Q.len, param.kmerSize, param.alphabetSize, param.sketchSize, Q.seqCounter);
 
 #ifdef DEBUG
           std::cout << "INFO, skch::Map::getSeedHits, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << " " << Q.len << "\n";
@@ -392,16 +410,9 @@ namespace skch
           //for (auto& mi : Q.minimizerTableQuery) 
             //std::cout << mi << std::endl;
 
-          int totalMinimizersPicked = 0;
-          
-          int freqSeeds = 0;
 
           for(auto it = Q.minimizerTableQuery.begin(); it != Q.minimizerTableQuery.end(); it++)
           {
-            if (refSketch.isFreqSeed(it->hash)) {
-              freqSeeds++;
-              continue;
-            }
             //Check if hash value exists in the reference lookup index
             auto seedFind = refSketch.minimizerPosLookupIndex.find(it->hash);
 
@@ -418,11 +429,6 @@ namespace skch
               });
             }
           }
-
-          // Set the sketch size after removing too-fequent hits
-          Q.sketchSize = Q.minimizerTableQuery.size() - freqSeeds;
-          if(Q.sketchSize == 0)
-            return;
 
           //Sort all the hit positions
           std::sort(intervalPoints.begin(), intervalPoints.end());
@@ -442,13 +448,10 @@ namespace skch
        * @param[in]   l1Mappings                candidate regions for query sequence found at L1
        * @param[out]  l2Mappings                Mapping results in the L2 stage
        */
-      template <typename Q_Info, typename VecIn, typename VecOut>
-        void doMapping(Q_Info &Q, VecIn &intervalPoints, VecOut &l2Mappings)
-        {
-          ///2. Walk the read over the candidate regions and compute the jaccard similarity with minimum s sketches
-          std::vector<L2_mapLocus_t> l2_vec = {};
-          computeL2MappedRegions(Q, intervalPoints, l2_vec);
 
+      template <typename Q_Info, typename VecIn, typename VecOut>
+        void addL2MappingMetadata(Q_Info &Q, VecIn &l2_vec, VecOut& l2Mappings)
+        {
           for (auto& l2 : l2_vec) {
             //Compute mash distance using calculated jaccard
             float mash_dist = Stat::j2md(1.0 * l2.sharedSketchSize/Q.sketchSize, param.kmerSize);
@@ -507,7 +510,117 @@ namespace skch
        * @param[out]  l2_out                    L2 mapping inside L1 candidate 
        */
       template <typename Q_Info>
-        void computeL2MappedRegions(Q_Info &Q, 
+        void computeFullReadMappedRegions(Q_Info &Q, 
+            const std::vector<skch::IntervalPoint> &openPoints,
+            const std::vector<skch::IntervalPoint> &closePoints,
+            std::vector<L2_mapLocus_t> &l2_vec_out)
+        {
+//#ifdef DEBUG
+          //std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
+//#endif
+          int strand_votes = 0;
+          int overlapCount = 0;
+          int beginOptimalPos = 0;
+          int lastOptimalPos = 0;
+          int bestSketchSize = 0;
+          bool in_candidate = false;
+          L2_mapLocus_t l2_out = {};
+
+          int window_len = Q.len - param.segLength;
+          SlideMapper<Q_Info> slidemap(Q);
+
+
+          int front_idx = 0;
+          for (; front_idx < openPoints.size() && openPoints[front_idx].pos < window_len && openPoints[front_idx].seqId == 0; front_idx++) {
+            const IntervalPoint& ip = openPoints[front_idx];
+            slidemap.insert_point(ip);
+          }
+
+          int back_idx = 0;
+          for (; front_idx < openPoints.size(); front_idx++) {
+            const IntervalPoint& front_ip = openPoints[front_idx];
+            int prev_strand_votes = slidemap.strand_votes;
+            slidemap.insert_point(front_ip);
+            //std::cout << "OPEN " << openPoints[front_idx].hash << //std::endl;
+            // Move up the back position to be within window_len
+            while (front_ip.pos - closePoints[back_idx].pos > window_len - 1 || front_ip.seqId != closePoints[back_idx].seqId) {
+              //std::cout << "CLOSE " << closePoints[back_idx].hash << //std::endl;
+              slidemap.delete_point(closePoints[back_idx]);
+              back_idx++;
+            }
+            const IntervalPoint& back_ip = closePoints[back_idx];
+            
+            //std::cout << "Window -> " << back_ip.seqId << ":" << back_ip.pos << ":" << front_ip.pos << //std::endl;
+            //std::cout << slidemap.slidingWindowMinhashes.size() << " elements total" << //std::endl;
+            //std::cout << slidemap.strand_votes << " = strand votes" << //std::endl;
+            //std::cout << slidemap.sharedSketchElements << //std::endl;
+              
+            //Is this sliding window the best we have so far?
+            if (slidemap.sharedSketchElements > bestSketchSize)
+            {
+              in_candidate = true;
+              bestSketchSize = slidemap.sharedSketchElements;
+              l2_out.sharedSketchSize = slidemap.sharedSketchElements;
+              l2_out.seqId = back_ip.seqId;
+
+              //Save the position
+              beginOptimalPos = back_ip.pos;
+              lastOptimalPos = back_ip.pos;
+            }
+            else if(slidemap.sharedSketchElements == bestSketchSize)
+            {
+              if (!in_candidate) {
+                l2_out.sharedSketchSize = slidemap.sharedSketchElements;
+
+                //Save the position
+                beginOptimalPos = back_ip.pos;
+                l2_out.seqId = back_ip.seqId;
+              }
+
+              in_candidate = true;
+              //Still save the position
+              lastOptimalPos = back_ip.pos;
+            } else {
+              if (in_candidate) {
+                // Save and reset
+                l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
+                l2_out.strand = prev_strand_votes >= 0 ? strnd::FWD : strnd::REV;
+                l2_vec_out.push_back(l2_out);
+                //std::cout << "Added candidate to results\n";
+                //std::cout << l2_out.sharedSketchSize << " -> " << beginOptimalPos << ":" << lastOptimalPos << //std::endl;
+                l2_out = L2_mapLocus_t();
+              }
+              in_candidate = false;
+            }
+
+            //std::cout << overlapCount << ", " << strand_votes << "\t" << (ip.side == side::OPEN ? "OPEN " : "CLOSE") << " @ " << std::to_string(ip.strand) << ", " << ip.seqId << ":" << ip.pos << "\t" << std::endl;
+            DEBUG_ASSERT(overlapCount >= 0);
+            DEBUG_ASSERT(overlapCount <= Q.sketchSize);
+          }//End of while loop
+
+          if (in_candidate) {
+            // Save and reset
+
+            const IntervalPoint& back_ip = closePoints[back_idx];
+            lastOptimalPos = back_ip.pos;
+            l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
+            l2_out.seqId = back_ip.seqId;
+            l2_out.strand = slidemap.strand_votes >= 0 ? strnd::FWD : strnd::REV;
+            l2_vec_out.push_back(l2_out);
+            //std::cout << "Added candidate to results\n";
+            //std::cout << l2_out.sharedSketchSize << " -> " << beginOptimalPos << ":" << lastOptimalPos << std::endl;
+          }
+
+        }
+
+      /**
+       * @brief                                 Find optimal mapping within an L1 candidate
+       * @param[in]   Q                         query sequence information
+       * @param[in]   candidateLocus            L1 candidate location
+       * @param[out]  l2_out                    L2 mapping inside L1 candidate 
+       */
+      template <typename Q_Info>
+        void computeSplitMappedRegions(Q_Info &Q, 
             std::vector<skch::IntervalPoint> &intervalPoints,
             std::vector<L2_mapLocus_t> &l2_vec_out)
         {
