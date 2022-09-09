@@ -15,6 +15,7 @@
 #include <cassert>
 #include <numeric>
 #include <iostream>
+//#include <cmath>
 
 //Own includes
 #include "map/include/base_types.hpp"
@@ -373,9 +374,7 @@ namespace skch
           if(Q.minimizerTableQuery.size() == 0)
             return;
 
-          //for (auto& mi : Q.minimizerTableQuery) 
-            //std::cout << mi << std::endl;
-
+          // TODO remove them from the original sketch instead of removing for each read
           auto new_end = std::remove_if(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), [&](auto mi) {
             return refSketch.isFreqSeed(mi.hash);
           });
@@ -383,6 +382,12 @@ namespace skch
 
           Q.sketchSize = Q.minimizerTableQuery.size();
         } 
+
+      //template <typename Q_Info, typename Vec>
+        //void getL1Regions(Q_info &Q, Vec L1_regions) {
+
+
+        //}
 
       /**
        * @brief       Find candidate regions for a read using level 1 (seed-hits) mapping
@@ -454,7 +459,11 @@ namespace skch
         {
           for (auto& l2 : l2_vec) {
             //Compute mash distance using calculated jaccard
-            float mash_dist = Stat::j2md(1.0 * l2.sharedSketchSize/Q.sketchSize, param.kmerSize);
+            //float mash_dist = Stat::j2md(1.0 * l2.sharedSketchSize/Q.sketchSize, param.kmerSize);
+            float mash_dist_old = Stat::j2md(1.0 * l2.sharedSketchSize/Q.sketchSize, param.kmerSize);
+
+            ////Correction to remove Poisson approximation from Mash Distance [BelBasi et al. (2022)]
+            float mash_dist = 1 - std::exp(-mash_dist_old);
 
             //Compute lower bound to mash distance within 90% confidence interval
             float mash_dist_lower_bound = Stat::md_lower_bound(mash_dist, Q.sketchSize, param.kmerSize, skch::fixed::confidence_interval);
