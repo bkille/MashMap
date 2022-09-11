@@ -64,7 +64,7 @@ namespace skch
        : MinimizerInfo{hash_, seqId_, wpos_, strand_}, wpos_end(wpos_end_) {};
 
     // Sort based on start point
-    bool operator <(const MashimizerInfo& x) {
+    bool operator <(const MashimizerInfo& x) const {
       return std::tie(seqId, wpos, strand) 
         < std::tie(x.seqId, x.wpos, x.strand);
     }

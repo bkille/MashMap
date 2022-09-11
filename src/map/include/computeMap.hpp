@@ -341,26 +341,14 @@ namespace skch
 #endif
           //Get seed hits
           getSeedHits(Q);
+          std::vector<skch::IntervalPoint> intervalPoints; 
+          getSeedIntervalPoints(Q, intervalPoints);
 
           //Mapping
           std::vector<L1_candidateLocus_t> L1_candidates;
-          std::vector<skch::IntervalPoint> intervalPoints; 
-          getSeedIntervalPoints(Q, intervalPoints);
           computeL1Windows(Q, intervalPoints, L1_candidates);
-
-          //std::cout << refSketch.sortedOpenPoints.size() << ", " << refSketch.sortedClosePoints.size() << std::endl;
-          //std::cout << "L1 windows...\n";
-          //for (auto& l1_candidate : L1_candidates) {
-            //std::cout << "Candidate window @ seqId: " << l1_candidate.seqId << ":" << l1_candidate.firstPos << ":" << l1_candidate.lastPos << std::endl;
-          //}
-          //std::cout << "-------------\n\n";
-
           std::vector<L2_mapLocus_t> temp_L2_mappings;
-          //if (param.split) {
-            //computeSplitReadMappedRegions(Q, refSketch.sortedOpenPoints, refSketch.sortedClosePoints, L1_candidates, temp_L2_mappings);
-          //} else {
-            computeFullReadMappedRegions(Q, refSketch.mashimizerIndex, L1_candidates, temp_L2_mappings);
-          //}
+          computeFullReadMappedRegions(Q, refSketch.mashimizerIndex, L1_candidates, temp_L2_mappings);
 
           addL2MappingMetadata(Q, temp_L2_mappings, l2Mappings);
 
@@ -395,11 +383,6 @@ namespace skch
           Q.sketchSize = Q.minimizerTableQuery.size();
         } 
 
-      //template <typename Q_Info, typename Vec>
-        //void getL1Regions(Q_info &Q, Vec L1_regions) {
-
-
-        //}
 
       /**
        * @brief       Find candidate regions for a read using level 1 (seed-hits) mapping
@@ -423,10 +406,6 @@ namespace skch
           //Ignore the query in this case
           if(Q.minimizerTableQuery.size() == 0)
             return;
-
-          //for (auto& mi : Q.minimizerTableQuery) 
-            //std::cout << mi << std::endl;
-
 
           for(auto it = Q.minimizerTableQuery.begin(); it != Q.minimizerTableQuery.end(); it++)
           {
@@ -476,13 +455,6 @@ namespace skch
 
           std::unordered_map<hash_t, int> hash_to_freq;
 
-          for (auto& ip : intervalPoints) {
-            overlapCount += ip.side;
-            assert(overlapCount >= 0);
-            assert(overlapCount <= Q.sketchSize);
-          }
-
-
           while (leadingIt != intervalPoints.end())
           {
             while (
@@ -491,8 +463,9 @@ namespace skch
                   || trailingIt->seqId < leadingIt->seqId))
             {
               if (trailingIt->side == side::CLOSE) {
-                hash_to_freq[trailingIt->hash]--;
-                if (hash_to_freq[trailingIt->hash] == 0)
+                if (!param.split)
+                  hash_to_freq[trailingIt->hash]--;
+                if (param.split || hash_to_freq[trailingIt->hash] == 0)
                   overlapCount--;
               }
               trailingIt++;
@@ -500,9 +473,10 @@ namespace skch
             auto currentPos = leadingIt->pos;
             while (leadingIt != intervalPoints.end() && leadingIt->pos == currentPos) {
               if (leadingIt->side == side::OPEN) {
-                if (hash_to_freq[leadingIt->hash] == 0)
+                if (param.split || hash_to_freq[leadingIt->hash] == 0)
                   overlapCount++;
-                hash_to_freq[leadingIt->hash]++;
+                if (!param.split)
+                  hash_to_freq[leadingIt->hash]++;
               }
               leadingIt++;
             }
@@ -614,17 +588,6 @@ namespace skch
                 res.conservedSketches = l2.sharedSketchSize;
                 res.strand = l2.strand; 
 
-                //Compute additional statistics -> strand, reference compexity
-                {
-                  //SlideMapper<Q_Info> slidemap(Q);
-                  //slidemap.insert_ref(l2.optimalStart, l2.optimalEnd);
-                  //int strandVotes, uniqueRefHashes;
-                  //slidemap.computeStatistics(strandVotes, uniqueRefHashes);
-
-                  //res.strand = strandVotes > 0 ? strnd::FWD : strnd::REV;
-                  //res.strand = strnd::FWD;
-                }
-
                 l2Mappings.push_back(res);
               }
             }
@@ -643,16 +606,18 @@ namespace skch
        */
       template <typename Q_Info>
         void computeFullReadMappedRegions(Q_Info &Q, 
-            std::vector<MashimizerInfo> mashimizerIndex,
+            const std::vector<MashimizerInfo>& mashimizerIndex,
             std::vector<L1_candidateLocus_t> &l1_vec_in,
             std::vector<L2_mapLocus_t> &l2_vec_out)
         {
-//#ifdef DEBUG
-          //std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
-//#endif
+#ifdef DEBUG
+          std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
+#endif
           for (L1_candidateLocus_t& l1_candidate : l1_vec_in) 
           {
-            //std::cout << "Candidate window @ seqId: " << l1_candidate.seqId << ":" << l1_candidate.firstPos << ":" << l1_candidate.lastPos << std::endl;
+#ifdef DEBUG
+            std::cout << "Candidate window @ seqId: " << l1_candidate.seqId << ":" << l1_candidate.firstPos << ":" << l1_candidate.lastPos << std::endl;
+#endif
            
             // Get first potential mashimizer
             const MashimizerInfo first_mashimizer = MashimizerInfo {0, l1_candidate.seqId, l1_candidate.firstPos - param.segLength, 0, 0};
