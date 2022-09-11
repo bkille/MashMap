@@ -15,7 +15,7 @@
 #include "map/include/base_types.hpp"
 
 //External includes
-#include "assert.hpp"
+//#include "assert.hpp"
 
 namespace skch
 {
@@ -126,7 +126,7 @@ namespace skch
             //slidingWindowMinhashes[it->hash] = slidingMapContainerValueType {1, true};
           }
 
-          ////std::cout << slidingWindowMinhashes.size() << " min hashes to start\n";
+          //std::cout << slidingWindowMinhashes.size() << " min hashes to start\n";
           //Point pivot to last element in the map
           this->pivot = std::prev(this->slidingWindowMinhashes.end());
 
@@ -140,9 +140,9 @@ namespace skch
          * @brief               insert a minimizer from the reference sequence into the map
          * @param[in]   m       reference minimizer to insert
          */
-        inline void insert_point(const IntervalPoint ip)
+        inline void insert_mashimizer(const skch::MashimizerInfo& mi)
         {
-          const hash_t hashVal = ip.hash;
+          const hash_t hashVal = mi.hash;
           int status;
 
           //if hash doesn't exist in the map, add to it
@@ -150,38 +150,42 @@ namespace skch
           {
             slidingWindowMinhashes[hashVal] = slidingMapContainerValueType {1, 0, 0, false};   //add the hash to window
             status = IN::UNIQ;
-            //std::cout << "Unique insert " << ip.hash << " @ " << ip.pos << std::endl; 
+            //std::cout << "Unique insert " << mi.hash << " @ " << mi.wpos << std::endl; 
           }
           else
           {
             status = (slidingWindowMinhashes[hashVal].is_query_mashimizer && slidingWindowMinhashes[hashVal].freq == 0) ? IN::CPLD 
               : IN::REV;
             if (status == IN::CPLD) {
-              //std::cout << "Pairing " << ip.hash << " @ " << ip.pos << std::endl; 
+              //std::cout << "Pairing " << mi.hash << " @ " << mi.wpos << std::endl; 
             }
 
             //if hash already exists in the map, just revise it
             slidingWindowMinhashes[hashVal].freq += 1;
           }
 
-          updateCountersAfterInsert(status, ip);
+          updateCountersAfterInsert(status, mi);
 
-          DEBUG_ASSERT(std::distance(slidingWindowMinhashes.begin(), pivot) == Q.sketchSize - 1);
-          DEBUG_ASSERT(this->sharedSketchElements >= 0);
-          DEBUG_ASSERT(this->sharedSketchElements <= Q.sketchSize);
+          assert(std::distance(slidingWindowMinhashes.begin(), pivot) == Q.sketchSize - 1);
+          assert(this->sharedSketchElements >= 0);
+          assert(this->sharedSketchElements <= Q.sketchSize);
         }
 
         /**
          * @brief               delete a minimizer from the reference sequence from the map
          * @param[in]   m       reference minimizer to remove
          */
-        void delete_point(const IntervalPoint& ip)
+        void delete_mashimizer(const skch::MashimizerInfo& mi)
         {
           int status;
-          const hash_t hashVal = ip.hash;
+          const hash_t hashVal = mi.hash;
           bool pivotDeleteCase = false;
           
-          DEBUG_ASSERT(this->slidingWindowMinhashes.find(hashVal) != this->slidingWindowMinhashes.end(), "Can't find hash to delete", hashVal);
+          //assert(this->slidingWindowMinhashes.find(hashVal) != this->slidingWindowMinhashes.end(), "Can't find hash to delete", hashVal);
+          // End point may not have had an open point
+          if (this->slidingWindowMinhashes.find(hashVal) == this->slidingWindowMinhashes.end()) {
+              return;
+          }
 
           this->slidingWindowMinhashes[hashVal].freq -= 1;
           if (this->slidingWindowMinhashes[hashVal].freq > 0) {
@@ -207,22 +211,22 @@ namespace skch
               pivotDeleteCase = true;
             }
 
-            //std::cout << "Removing " << ip.hash <<  " @ " << ip.pos << std::endl; 
+            //std::cout << "Removing " << mi.hash <<  " @ " << mi.wpos << std::endl; 
             this->slidingWindowMinhashes.erase(hashVal);              //Remove the entry from the map
             status = OUT::DEL; 
           }
           else
           {
-            //std::cout << "Unpairing " << ip.hash << " @ " << ip.pos << std::endl; 
+            //std::cout << "Unpairing " << mi.hash << " @ " << mi.wpos << std::endl; 
             status = OUT::UPD; 
           }
 
           if(!pivotDeleteCase) 
-            updateCountersAfterDelete(status, ip);
+            updateCountersAfterDelete(status, mi);
 
-          DEBUG_ASSERT(std::distance(slidingWindowMinhashes.begin(), pivot) == Q.sketchSize - 1);
-          DEBUG_ASSERT(this->sharedSketchElements >= 0);
-          DEBUG_ASSERT(this->sharedSketchElements <= Q.sketchSize);
+          assert(std::distance(slidingWindowMinhashes.begin(), pivot) == Q.sketchSize - 1);
+          assert(this->sharedSketchElements >= 0);
+          assert(this->sharedSketchElements <= Q.sketchSize);
         }
 
 
@@ -233,9 +237,9 @@ namespace skch
          * @param[in] status  insert status
          * @param[in] m       reference minimizer that was inserted
          */
-        void updateCountersAfterInsert(int status, const IntervalPoint& ip)
+        void updateCountersAfterInsert(int status, const skch::MashimizerInfo& mi)
         {
-          hash_t hash = ip.hash;
+          hash_t hash = mi.hash;
           //Revise internal counters
           if(hash <= this->pivot->first)
           {
@@ -243,15 +247,15 @@ namespace skch
             {
               //Increase count of shared sketch elements by 1
               this->sharedSketchElements += 1;
-              this->slidingWindowMinhashes[hash].r_strand = ip.strand;
+              this->slidingWindowMinhashes[hash].r_strand = mi.strand;
               if (this->slidingWindowMinhashes[hash].r_strand == 0) {
                 //std::cout << hash <<  " ERROR3\n";
               }
-              this->strand_votes += this->slidingWindowMinhashes[hash].q_strand * ip.strand;
+              this->strand_votes += this->slidingWindowMinhashes[hash].q_strand * mi.strand;
             }
             else if(status == IN::UNIQ)
             {
-              if (ip.hash < pivot->first) {
+              if (mi.hash < pivot->first) {
                 if(this->pivot->second.is_query_mashimizer && this->pivot->second.freq > 0) {
                   this->sharedSketchElements -= 1;
                   this->strand_votes -= this->pivot->second.r_strand * this->pivot->second.q_strand;
@@ -269,7 +273,7 @@ namespace skch
           } else {
             if(status == IN::CPLD)
             {
-              this->slidingWindowMinhashes[hash].r_strand = ip.strand;
+              this->slidingWindowMinhashes[hash].r_strand = mi.strand;
             }
           }
         }
@@ -279,17 +283,17 @@ namespace skch
          * @param[in] status  insert status
          * @param[in] m       reference minimizer that was inserted
          */
-        void updateCountersAfterDelete(int status, const IntervalPoint& ip)
+        void updateCountersAfterDelete(int status, const skch::MashimizerInfo& mi)
         {
           //Revise internal counters
-          if(ip.hash <= this->pivot->first)
+          if(mi.hash <= this->pivot->first)
           {
             if(status == OUT::UPD)
             {
               //Decrease count of shared sketch elements by 1
               this->sharedSketchElements -= 1;
-              this->strand_votes -= this->slidingWindowMinhashes[ip.hash].q_strand * this->slidingWindowMinhashes[ip.hash].r_strand;
-              this->slidingWindowMinhashes[ip.hash].r_strand = 0;
+              this->strand_votes -= this->slidingWindowMinhashes[mi.hash].q_strand * this->slidingWindowMinhashes[mi.hash].r_strand;
+              this->slidingWindowMinhashes[mi.hash].r_strand = 0;
             }
             else if(status == OUT::DEL)
             {

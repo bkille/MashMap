@@ -25,7 +25,7 @@
 //External includes
 #include "common/murmur3.h"
 #include "common/prettyprint.hpp"
-#include "assert.hpp"
+//#include "assert.hpp"
 
 namespace skch
 {
@@ -175,12 +175,12 @@ namespace skch
             }
           }
         }
-        //DEBUG_ASSERT(sketched_vals.size() <= sketchSize);
+        //assert(sketched_vals.size() <= sketchSize);
         mashimizerIndex.reserve(sketched_vals.size());
         std::for_each(sketched_vals.begin(), sketched_vals.end(),
             [&mashimizerIndex](auto& pair) {
             pair.second.strand = pair.second.strand > 0 ? strnd::FWD : (pair.second.strand == 0 ? strnd::AMBIG : strnd::REV);
-            //DEBUG_ASSERT(std::abs(pair.second.strand) < 2);
+            //assert(std::abs(pair.second.strand) < 2);
             mashimizerIndex.push_back(pair.second);
         });
 
@@ -265,7 +265,7 @@ namespace skch
             //std::cout << "(" << it->first << ": " << it->second.second << "), ";
           //}
           //std::cout << std::endl;
-          //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+          //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
 
           //If front minimum is not in the current window, remove it
           if (!Q.empty() && std::get<2>(Q.front()) <  currentWindowId) {
@@ -312,7 +312,7 @@ namespace skch
             Q.pop_front();
           }
 
-          //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+          //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
           //Consider non-symmetric kmers only
           if(hashBwd != hashFwd)
           {
@@ -343,7 +343,7 @@ namespace skch
             sortedWindow[currentKmer].second += 1;
           }
 
-          //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+          //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
 
           //Select the minimizer from Q and put into index
           if(currentWindowId >= 0)
@@ -379,16 +379,16 @@ namespace skch
               }
             }
 #ifdef DEBUG
-            //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
-            //DEBUG_ASSERT(piv.p == sortedWindow.end() || (piv.p->second.first.wpos == -1 && piv.p->second.first.wpos_end == -1));
-            //DEBUG_ASSERT((sortedWindow.size() == 0 || currentWindowId < 0) || (std::prev(piv.p)->second.first.wpos != -1 && std::prev(piv.p)->second.first.wpos_end == -1));
+            //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+            //assert(piv.p == sortedWindow.end() || (piv.p->second.first.wpos == -1 && piv.p->second.first.wpos_end == -1));
+            //assert((sortedWindow.size() == 0 || currentWindowId < 0) || (std::prev(piv.p)->second.first.wpos != -1 && std::prev(piv.p)->second.first.wpos_end == -1));
             //for (auto it = sortedWindow.begin(); it != sortedWindow.end(); it++) {
               //if (piv.p == sortedWindow.end() || it->first < piv.p->first) {
-                //DEBUG_ASSERT(it->second.first.wpos != -1, it->second.first);
-                //DEBUG_ASSERT(it->second.first.wpos_end == -1);
+                //assert(it->second.first.wpos != -1, it->second.first);
+                //assert(it->second.first.wpos_end == -1);
               //} else {
-                //DEBUG_ASSERT(it->second.first.wpos == -1, it->second.first, currentWindowId);
-                //DEBUG_ASSERT(it->second.first.wpos_end == -1);
+                //assert(it->second.first.wpos == -1, it->second.first, currentWindowId);
+                //assert(it->second.first.wpos_end == -1);
               //}
             //}
 #endif
@@ -406,9 +406,9 @@ namespace skch
           //if (sortedWindow.size() > sketchSize*2 + 20) {
             //sortedWindow.erase(std::prev(sortedWindow.end()));
           //}
-          //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
-          //DEBUG_ASSERT(piv.p == sortedWindow.end() || (piv.p->second.first.wpos == -1 && piv.p->second.first.wpos_end == -1));
-          //DEBUG_ASSERT(((sortedWindow.size() == 0 || currentWindowId < 0) || (std::prev(piv.p)->second.first.wpos != -1 && std::prev(piv.p)->second.first.wpos_end == -1)));
+          //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+          //assert(piv.p == sortedWindow.end() || (piv.p->second.first.wpos == -1 && piv.p->second.first.wpos_end == -1));
+          //assert(((sortedWindow.size() == 0 || currentWindowId < 0) || (std::prev(piv.p)->second.first.wpos != -1 && std::prev(piv.p)->second.first.wpos_end == -1)));
         }
 
         uint64_t rank = 1;

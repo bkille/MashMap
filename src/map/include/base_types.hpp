@@ -62,6 +62,12 @@ namespace skch
     MashimizerInfo() {};
     MashimizerInfo(hash_t hash_, seqno_t seqId_, offset_t wpos_, offset_t wpos_end_, strand_t strand_)
        : MinimizerInfo{hash_, seqId_, wpos_, strand_}, wpos_end(wpos_end_) {};
+
+    // Sort based on start point
+    bool operator <(const MashimizerInfo& x) {
+      return std::tie(seqId, wpos, strand) 
+        < std::tie(x.seqId, x.wpos, x.strand);
+    }
   };
 
   template <class ostream>
@@ -107,11 +113,10 @@ namespace skch
 
     // Sort interval points. 
     // For a pair of points at the same seqId/pos, the end point should be first
-    bool operator <(const IntervalPoint& x) {
+    bool operator <(const IntervalPoint& x) const {
       return std::tie(seqId, pos, side) 
         < std::tie(x.seqId, x.pos, x.side);
     }
-
   };
 
   template <class ostream>

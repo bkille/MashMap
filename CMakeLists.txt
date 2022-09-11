@@ -17,7 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_BUILD_TYPE RelWDebInfo)
+set(CMAKE_BUILD_TYPE Release)
 
 # set up linters/checkers
 #set(CMAKE_CXX_CPPCHECK cppcheck;--std=c++17;--file-filter=*bitlib*)
@@ -58,7 +58,7 @@ target_compile_options(mashmap-align PUBLIC ${PROD_FLAGS})
 
 # specify debugging libraries
 include_directories(src/)
-target_link_libraries(mashmap PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread assert)
+target_link_libraries(mashmap PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread -fsanitize=address)
 target_link_libraries(mashmap-align PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread)
 
 install(TARGETS mashmap DESTINATION .)

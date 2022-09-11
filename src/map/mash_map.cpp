@@ -18,6 +18,8 @@
 
 //External includes
 #include "common/argvparser.hpp"
+//#include "assert.hpp"
+
 
 int main(int argc, char** argv)
 {
@@ -26,6 +28,8 @@ int main(int argc, char** argv)
    * for efficient multi-thread execution
    */
   unsetenv((char *)"MALLOC_ARENA_MAX");
+  
+  //DEBUG_ASSERT(-1 == 1, "DEBUG asserts are running even though DEBUG is not defined!");
 
   CommandLineProcessing::ArgvParser cmd;
 

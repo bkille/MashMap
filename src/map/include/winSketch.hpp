@@ -92,14 +92,15 @@ namespace skch
       std::vector<IntervalPoint> sortedOpenPoints;
       std::vector<IntervalPoint> sortedClosePoints;
 
-      private:
-
       /**
        * Keep list of minimizers, sequence# , their position within seq , here while parsing sequence 
        * Note : position is local within each contig
        * Hashes saved here are non-unique, ordered as they appear in the reference
        */
       MI_Type mashimizerIndex;
+
+      private:
+
 
       //Frequency histogram of minimizers
       //[... ,x -> y, ...] implies y number of minimizers occur x times
@@ -293,10 +294,10 @@ namespace skch
           //}
               
 #endif
-          if ( !param.split ) {
+          //if ( !param.split ) {
             sortedOpenPoints.push_back(IntervalPoint{side::OPEN, e.seqId, e.wpos, e.strand, e.hash});
             sortedClosePoints.push_back(IntervalPoint{side::CLOSE, e.seqId, e.wpos_end, e.strand, e.hash});
-          }
+          //}
           minimizerPosLookupIndex[e.hash].push_back(e);
         }
         //std::sort(sortedOpenPoints.begin(), sortedOpenPoints.end());
