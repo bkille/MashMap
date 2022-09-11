@@ -1,5 +1,5 @@
 set(DEBUG_FLAGS -O2 -g -fno-omit-frame-pointer -pg -DDEBUG -fsanitize=address)
-set(PROD_FLAGS -O2 -g)
+set(PROD_FLAGS -O2 -g -fno-omit-frame-pointer)
 # specify the C++ standard
 cmake_minimum_required(VERSION 3.14)
 
@@ -58,7 +58,7 @@ target_compile_options(mashmap-align PUBLIC ${PROD_FLAGS})
 
 # specify debugging libraries
 include_directories(src/)
-target_link_libraries(mashmap PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread -fsanitize=address)
+target_link_libraries(mashmap PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread)
 target_link_libraries(mashmap-align PRIVATE -lgsl -lgslcblas -lstdc++ -lz -lm -lpthread)
 
 install(TARGETS mashmap DESTINATION .)
