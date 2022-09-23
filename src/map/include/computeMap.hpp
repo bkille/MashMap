@@ -25,7 +25,6 @@
 #include "map/include/winSketch.hpp"
 #include "map/include/map_stats.hpp"
 #include "map/include/slidingMap.hpp"
-#include "map/include/MIIteratorL2.hpp"
 #include "map/include/ThreadPool.hpp"
 #include "map/include/filter.hpp"
 
@@ -225,7 +224,6 @@ namespace skch
         else  //Split read mapping
         {
           int noOverlapFragmentCount = input->len / param.segLength;
-          bool mappingReported = false;
 
           //Map individual non-overlapping fragments in the read
           for (int i = 0; i < noOverlapFragmentCount; i++)
@@ -374,7 +372,9 @@ namespace skch
           if(Q.minimizerTableQuery.size() == 0)
             return;
 
+#ifdef DEBUG
           int orig_len = Q.minimizerTableQuery.size();
+#endif
           // TODO remove them from the original sketch instead of removing for each read
           auto new_end = std::remove_if(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), [&](auto mi) {
             return refSketch.isFreqSeed(mi.hash);
@@ -383,9 +383,6 @@ namespace skch
 
           Q.sketchSize = Q.minimizerTableQuery.size();
 #ifdef DEBUG
-          for (auto& mi : Q.minimizerTableQuery) {
-            std::cout << mi << std::endl;
-          }
           std::cout << "INFO, skch::Map::getSeedHits, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << ", bad minimizers = " << orig_len - Q.sketchSize << "\n";
 #endif
         } 
@@ -469,7 +466,7 @@ namespace skch
           {
             while (
                 trailingIt != intervalPoints.end() 
-                && (trailingIt->seqId == leadingIt->seqId && trailingIt->pos <= leadingIt->pos - windowLen
+                && ((trailingIt->seqId == leadingIt->seqId && trailingIt->pos <= leadingIt->pos - windowLen)
                   || trailingIt->seqId < leadingIt->seqId))
             {
               if (trailingIt->side == side::CLOSE) {
@@ -511,7 +508,7 @@ namespace skch
           {
             while (
                 trailingIt != intervalPoints.end() 
-                && (trailingIt->seqId == leadingIt->seqId && trailingIt->pos <= leadingIt->pos - windowLen
+                && ((trailingIt->seqId == leadingIt->seqId && trailingIt->pos <= leadingIt->pos - windowLen)
                   || trailingIt->seqId < leadingIt->seqId))
             {
               if (trailingIt->side == side::CLOSE) {
@@ -542,7 +539,7 @@ namespace skch
                 L1_candidates.push_back(l1_out);
               }
               in_candidate = false;
-              L1_candidateLocus_t l1_out = {};
+              l1_out = {};
             }
             if (trailingIt != intervalPoints.end())
               trailingPos = trailingIt->pos;

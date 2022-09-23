@@ -1,4 +1,4 @@
-set(ALL_FLAGS -g -O2 -Wall -Wextra -Wshadow -Wnon-virtual-dtor -pedantic -Werror)
+set(ALL_FLAGS -g -O2 -Wall -pedantic -Werror -Wno-shadow -Wno-sign-compare -Wno-implicit-fallthrough -Wno-maybe-uninitialized)
 
 set(DEBUG_FLAGS ${ALL_FLAGS} -fno-omit-frame-pointer -pg -DDEBUG -fsanitize=address)
 set(PROD_FLAGS ${ALL_FLAGS} -fno-omit-frame-pointer)
@@ -40,13 +40,14 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(assert)
 
 # Add targets
-file(GLOB MAP_HEADERS "src/map/include" "*.hpp")
-file(GLOB MAP_SOURCES "src/map/" "*.cpp")
-file(GLOB ALIGN_HEADERS "src/align/include" ".hpp")
-file(GLOB ALIGN_SOURCES "src/align/" "*.cpp")
-file(GLOB COMMON_HEADERS "src/common/include" ".hpp")
-file(GLOB COMMON_SOURCES "src/common/" "*.cpp")
+#file(GLOB MAP_HEADERS "src/map/include" "*.hpp")
+#file(GLOB MAP_SOURCES "src/map/" "*.cpp")
+#file(GLOB ALIGN_HEADERS "src/align/include" ".hpp")
+#file(GLOB ALIGN_SOURCES "src/align/" "*.cpp")
+#file(GLOB COMMON_HEADERS "src/common/include" ".hpp")
+#file(GLOB COMMON_SOURCES "src/common/" "*.cpp")
 #add_executable(mashmap ${MAP_SOURCES})
+
 add_executable(mashmap-debug "src/map/mash_map.cpp")
 add_executable(mashmap "src/map/mash_map.cpp")
 add_executable(mashmap-align "src/align/align.cpp")
