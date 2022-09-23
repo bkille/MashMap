@@ -86,7 +86,8 @@ namespace skch
        * [minimizer #2] -> [pos1, pos2...]
        * ...
        */
-      using MI_Map_t = google::dense_hash_map< MinimizerMapKeyType, MinimizerMapValueType >;
+      //using MI_Map_t = google::dense_hash_map< MinimizerMapKeyType, MinimizerMapValueType >;
+      using MI_Map_t = std::unordered_map< MinimizerMapKeyType, MinimizerMapValueType >;
       MI_Map_t minimizerPosLookupIndex;
 
       /**
@@ -282,7 +283,7 @@ namespace skch
       void index()
       {
         //Parse all the minimizers and push into the map
-        minimizerPosLookupIndex.set_empty_key(0);
+        //minimizerPosLookupIndex.set_empty_key(0);
 
         for(auto &e : mashimizerIndex)
         {
@@ -357,9 +358,9 @@ namespace skch
         }
 
         if(this->freqThreshold != std::numeric_limits<int>::max())
-          std::cout << "INFO, skch::Sketch::computeFreqHist, With threshold " << this->percentageThreshold << "\%, ignore minimizers occurring >= " << this->freqThreshold << " times during lookup." << std::endl;
+          std::cout << "INFO, skch::Sketch::computeFreqHist, With threshold " << this->percentageThreshold << "%, ignore minimizers occurring >= " << this->freqThreshold << " times during lookup." << std::endl;
         else
-          std::cout << "INFO, skch::Sketch::computeFreqHist, With threshold " << this->percentageThreshold << "\%, consider all minimizers during lookup." << std::endl;
+          std::cout << "INFO, skch::Sketch::computeFreqHist, With threshold " << this->percentageThreshold << "%, consider all minimizers during lookup." << std::endl;
 
       }
 

@@ -155,7 +155,7 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
     std::cout << "Segment length = " << parameters.segLength << (parameters.split ? " (read split allowed)": " (read split disabled)") << std::endl;
     std::cout << "Sketch size = " << parameters.sketchSize << std::endl;
     std::cout << "Alphabet = " << (parameters.alphabetSize == 4 ? "DNA" : "AA") << std::endl;
-    std::cout << "Percentage identity threshold = " << parameters.percentageIdentity << "\%" << std::endl;
+    std::cout << "Percentage identity threshold = " << parameters.percentageIdentity << "%" << std::endl;
     std::cout << "Mapping output file = " << parameters.outFileName << std::endl;
     std::cout << "Filter mode = " << parameters.filterMode << " (1 = map, 2 = one-to-one, 3 = none)" << std::endl;
     std::cout << "Execution threads  = " << parameters.threads << std::endl;
@@ -326,7 +326,7 @@ sequences shorter than segment length will be ignored", ArgvParser::OptionRequir
 
       if(parameters.percentageIdentity < 70)
       {
-        std::cerr << "ERROR, skch::parseandSave, minimum nucleotide identity requirement should be >= 70\%\n" << std::endl;
+        std::cerr << "ERROR, skch::parseandSave, minimum nucleotide identity requirement should be >= 70%\n" << std::endl;
         exit(1);
       }
     }
