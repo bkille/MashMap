@@ -22,59 +22,40 @@ namespace skch
   typedef std::chrono::high_resolution_clock Time;
 
   //Information about each minimizer
-  struct MinimizerInfo
+  struct MashimizerInfo
   {
     hash_t hash;                              //hash value
     seqno_t seqId;                            //sequence or contig id
     offset_t wpos;                            //First (left-most) window position when the minimizer is saved
+    offset_t wpos_end;
     strand_t strand;                          //strand information
 
-    //Lexographical less than comparison
-    bool operator <(const MinimizerInfo& x) {
-      return std::tie(hash, seqId, wpos, strand) 
-        < std::tie(x.hash, x.seqId, x.wpos, x.strand);
-    }
-
     //Lexographical equality comparison
-    bool operator ==(const MinimizerInfo& x) {
+    bool operator ==(const MashimizerInfo& x) const {
       return std::tie(hash, seqId, wpos, strand) 
         == std::tie(x.hash, x.seqId, x.wpos, x.strand);
     }
 
-    bool operator !=(const MinimizerInfo& x) {
+    bool operator !=(const MashimizerInfo& x) const {
       return std::tie(hash, seqId, wpos, strand) 
         != std::tie(x.hash, x.seqId, x.wpos, x.strand);
     }
 
-    static bool equalityByHash(const MinimizerInfo& x, const MinimizerInfo& y) {
+    static bool equalityByHash(const MashimizerInfo& x, const MashimizerInfo& y) {
       return x.hash == y.hash;
     }
 
-    static bool lessByHash(const MinimizerInfo& x, const MinimizerInfo& y) {
+    static bool lessByHash(const MashimizerInfo& x, const MashimizerInfo& y) {
       return x.hash < y.hash;
     }
 
-  };
-
-  struct MashimizerInfo : public MinimizerInfo 
-  {
-    offset_t wpos_end;
-    MashimizerInfo() {};
-    MashimizerInfo(hash_t hash_, seqno_t seqId_, offset_t wpos_, offset_t wpos_end_, strand_t strand_)
-       : MinimizerInfo{hash_, seqId_, wpos_, strand_}, wpos_end(wpos_end_) {};
-
     // Sort based on start point
     bool operator <(const MashimizerInfo& x) const {
-      return std::tie(seqId, wpos, strand) 
-        < std::tie(x.seqId, x.wpos, x.strand);
+      return std::tie(seqId, wpos) 
+        < std::tie(x.seqId, x.wpos);
     }
   };
 
-  template <class ostream>
-  ostream& operator<< (ostream& os, const MashimizerInfo& mi) {
-    os << mi.seqId <<  "\t" << std::to_string(static_cast<int>(mi.strand)) << "\t" << mi.wpos << "\t" << mi.wpos_end << "\t" << mi.hash;
-    return os;
-  };
 
   //Type for map value type used for
   //L1 stage lookup index
@@ -90,10 +71,11 @@ namespace skch
     }
   };
 
-  //ostream& operator<< (ostream& os, const MinimizerMetaData& mi) {
-    //os << mi.seqId <<  "\t" << std::to_string(mi.strand) << "\t" << mi.wpos << "\t" << mi.wpos_end << "\t" << mi.hash;
-    //return os;
-  //};
+  template <class ostream>
+  ostream& operator<< (ostream& os, const MashimizerInfo& mi) {
+    os << mi.seqId <<  "\t" << std::to_string(mi.strand) << "\t" << mi.wpos << "\t" << mi.wpos_end << "\t" << mi.hash;
+    return os;
+  };
 
   // Enum for tracking which side of an interval a point represents
   enum side : side_t
@@ -205,12 +187,12 @@ namespace skch
      * @param[in] kseq_id   sequence id name
      * @param[in] len       length of sequence
      */
-    InputSeqContainer(const char * kseq_seq, const char * kseq_id, offset_t len, seqno_t seqcount)
+    InputSeqContainer(const char * kseq_seq_, const char * kseq_id_, offset_t len_, seqno_t seqcount_)
     {
-      this->seq = std::string{kseq_seq, std::size_t(len)};
-      this->seqName = std::string{kseq_id};
-      this->len = len;
-      this->seqCounter = seqcount; 
+      this->seq = std::string{kseq_seq_, std::size_t(len_)};
+      this->seqName = std::string{kseq_id_};
+      this->len = len_;
+      this->seqCounter = seqcount_; 
     }
   };
 

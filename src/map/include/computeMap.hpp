@@ -30,7 +30,7 @@
 #include "map/include/filter.hpp"
 
 //External includes
-//#include "assert.hpp"
+#include "assert.hpp"
 
 namespace skch
 {
@@ -374,6 +374,7 @@ namespace skch
           if(Q.minimizerTableQuery.size() == 0)
             return;
 
+          int orig_len = Q.minimizerTableQuery.size();
           // TODO remove them from the original sketch instead of removing for each read
           auto new_end = std::remove_if(Q.minimizerTableQuery.begin(), Q.minimizerTableQuery.end(), [&](auto mi) {
             return refSketch.isFreqSeed(mi.hash);
@@ -381,6 +382,12 @@ namespace skch
           Q.minimizerTableQuery.erase(new_end, Q.minimizerTableQuery.end());
 
           Q.sketchSize = Q.minimizerTableQuery.size();
+#ifdef DEBUG
+          for (auto& mi : Q.minimizerTableQuery) {
+            std::cout << mi << std::endl;
+          }
+          std::cout << "INFO, skch::Map::getSeedHits, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << ", bad minimizers = " << orig_len - Q.sketchSize << "\n";
+#endif
         } 
 
 
@@ -401,6 +408,7 @@ namespace skch
 #ifdef DEBUG
           std::cout << "INFO, skch::Map::getSeedHits, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << " " << Q.len << "\n";
 #endif
+          //std::cout << "INFO, skch::Map::getSeedHits, read id " << Q.seqCounter << ", minimizer count = " << Q.minimizerTableQuery.size() << " " << Q.len << "\n";
 
           //For invalid query (example : just NNNs), we may be left with 0 sketch size
           //Ignore the query in this case
@@ -429,6 +437,7 @@ namespace skch
           //Sort all the hit positions
           std::sort(intervalPoints.begin(), intervalPoints.end());
 
+          //std::cout << "INFO, skch::Map:getSeedHits, read id " << Q.seqCounter << ", Count of seed hits in the reference = " << intervalPoints.size() / 2 << "\n";
 #ifdef DEBUG
           std::cout << "INFO, skch::Map:getSeedHits, read id " << Q.seqCounter << ", Count of seed hits in the reference = " << intervalPoints.size() / 2 << "\n";
 #endif
@@ -454,6 +463,7 @@ namespace skch
           int windowLen = Q.len - param.segLength;
 
           std::unordered_map<hash_t, int> hash_to_freq;
+
 
           while (leadingIt != intervalPoints.end())
           {
@@ -485,8 +495,8 @@ namespace skch
             {
               bestSketchSize = overlapCount;
             }
-            assert(overlapCount >= 0);
-            assert(overlapCount <= Q.sketchSize);
+            DEBUG_ASSERT(overlapCount >= 0);
+            DEBUG_ASSERT(overlapCount <= Q.sketchSize);
           }
 
           //std::cout << "OVERLAP: " << bestSketchSize << std::endl;
@@ -495,6 +505,7 @@ namespace skch
           trailingIt = intervalPoints.begin();
           leadingIt = intervalPoints.begin();
           overlapCount = 0;
+          int trailingPos = 0;
 
           while (leadingIt != intervalPoints.end())
           {
@@ -515,11 +526,13 @@ namespace skch
               }
               leadingIt++;
             }
-            IntervalPoint& ip = *leadingIt; 
-            if (overlapCount > bestSketchSize * 0.9)
+            //std::cout << "Window from " << trailingIt->seqId << ":" << trailingIt->pos << " to " << leadingIt->seqId << ":" << leadingIt->pos << std::endl;
+            //std::cout << overlapCount << std::endl;
+            IntervalPoint& ip = *std::prev(leadingIt); 
+            if (overlapCount >  bestSketchSize * 0.9) //std::max<float>(1, bestSketchSize * 0.9 - 2))
             {
               if (!in_candidate) {
-                l1_out.firstPos = ip.pos - windowLen;
+                l1_out.firstPos = trailingPos;
                 l1_out.seqId = ip.seqId;
               }
               l1_out.lastPos = ip.pos;
@@ -531,6 +544,8 @@ namespace skch
               in_candidate = false;
               L1_candidateLocus_t l1_out = {};
             }
+            if (trailingIt != intervalPoints.end())
+              trailingPos = trailingIt->pos;
           }
           if (in_candidate) {
             // Save and reset
@@ -615,12 +630,13 @@ namespace skch
 #endif
           for (L1_candidateLocus_t& l1_candidate : l1_vec_in) 
           {
-#ifdef DEBUG
-            std::cout << "Candidate window @ seqId: " << l1_candidate.seqId << ":" << l1_candidate.firstPos << ":" << l1_candidate.lastPos << std::endl;
-#endif
+//#ifdef DEBUG
+            //std::cout << "Candidate window @ seqId: " << l1_candidate.seqId << ":" << l1_candidate.firstPos << ":" << l1_candidate.lastPos << std::endl;
+//#endif
            
             // Get first potential mashimizer
-            const MashimizerInfo first_mashimizer = MashimizerInfo {0, l1_candidate.seqId, l1_candidate.firstPos - param.segLength, 0, 0};
+            const MashimizerInfo first_mashimizer = MashimizerInfo {0, l1_candidate.seqId, l1_candidate.firstPos - param.segLength - 1, 0, 0};
+            //const MashimizerInfo first_mashimizer = MashimizerInfo {0, l1_candidate.seqId, -1, 0, 0};
             auto firstOpenIt = std::lower_bound(mashimizerIndex.begin(), mashimizerIndex.end(), first_mashimizer); 
             //std::cout << "First mashimizer @ index " << std::distance(mashimizerIndex.begin(), firstOpenIt) << std::endl;;
 
@@ -628,7 +644,7 @@ namespace skch
             std::vector<skch::MashimizerInfo> slidingWindow;
 
             // Used to make a min-heap
-            constexpr auto heap_cmp = [](const skch::MashimizerInfo& l, const skch::MashimizerInfo& r) {return l.wpos_end >= r.wpos_end;};
+            constexpr auto heap_cmp = [](const skch::MashimizerInfo& l, const skch::MashimizerInfo& r) {return l.wpos_end > r.wpos_end;};
 
             // windowIt keeps track of beginning of window
             auto windowIt = firstOpenIt;
@@ -652,27 +668,35 @@ namespace skch
                   slidingWindow.push_back(*windowIt);
                   std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
                   slideMap.insert_mashimizer(*windowIt);
+                  //std::cout << "Inserting " << windowIt->hash << " to the sliding window\n";
               }
               windowIt++;
             }
             //std::cout << "Start mashimizers loaded\n";
 
-            while (windowIt->seqId == l1_candidate.seqId && windowIt->wpos < l1_candidate.lastPos) 
+            while (windowIt != mashimizerIndex.end() && windowIt->seqId == l1_candidate.seqId && windowIt->wpos <= l1_candidate.lastPos + windowLen) 
             {
               int prev_strand_votes = slideMap.strand_votes;
-              while (!slidingWindow.empty() && slidingWindow.front().wpos_end <= windowIt->wpos - windowLen) {
+              bool inserted = false;
+              if (!slidingWindow.empty() && slidingWindow.front().wpos_end <= windowIt->wpos - windowLen) {
                 // Remove mashimizer from  sorted window
                 slideMap.delete_mashimizer(slidingWindow.front());
 
                 // Remove mashimizer from end-ordered heap
                 std::pop_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
                 slidingWindow.pop_back();
+              } else {
+                inserted = true;
+                slideMap.insert_mashimizer(*windowIt);
+                slidingWindow.push_back(*windowIt);
+                std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
               }
-              slideMap.insert_mashimizer(*windowIt);
-              slidingWindow.push_back(*windowIt);
-              std::push_heap(slidingWindow.begin(), slidingWindow.end(), heap_cmp);
 
-              //std::cout << "Leading mashimizer @ " << windowIt->seqId << ":" <<  windowIt->wpos << std::endl;
+              //std::cout << "Leading mashimizer " << windowIt->hash << " @ " 
+                //<< windowIt->seqId << ":" <<  windowIt->wpos - windowLen 
+                //<< " --> " 
+                //<< windowIt->seqId << ":" <<  windowIt->wpos << std::endl;
+              //std::cout << "SlideMap size: " << slideMap.slidingWindowMinhashes.size() << std::endl;
               //std::cout << "Overlap: " << slideMap.sharedSketchElements << std::endl;
 
               //Is this sliding window the best we have so far?
@@ -712,7 +736,9 @@ namespace skch
                 }
                 in_candidate = false;
               }
-              windowIt++;
+              if (inserted) {
+                windowIt++;
+              }
             }
             if (in_candidate) {
               // Save and reset
@@ -723,155 +749,13 @@ namespace skch
               l2_vec_out.push_back(l2_out);
             }
           }
-        }
-
-      /**
-       * @brief                                 Find optimal mapping within an L1 candidate
-       * @param[in]   Q                         query sequence information
-       * @param[in]   candidateLocus            L1 candidate location
-       * @param[out]  l2_out                    L2 mapping inside L1 candidate 
-       */
-      template <typename Q_Info>
-        void computeSplitReadMappedRegions(Q_Info &Q, 
-            std::vector<skch::IntervalPoint> &intervalPoints,
-            std::vector<L2_mapLocus_t> &l2_vec_out)
-        {
-//#ifdef DEBUG
-          //std::cout << "INFO, skch::Map:computeL2MappedRegions, read id " << Q.seqName << "_" << Q.startPos << std::endl; 
-//#endif
-          int strand_votes = 0;
-          int overlapCount = 0;
-          int beginOptimalPos = 0;
-          int lastOptimalPos = 0;
-          int bestSketchSize = 0;
-          bool in_candidate = false;
-          L2_mapLocus_t l2_out = {};
-
-          for (int i = 0; i < intervalPoints.size(); i++) 
-          {
-            const IntervalPoint& ip = intervalPoints[i];
-            overlapCount += ip.side;
-            
-            if (i == intervalPoints.size() - 1 || ip.pos != intervalPoints[i+1].pos) 
-            {
-              //Is this sliding window the best we have so far?
-              if (overlapCount > bestSketchSize)
-              {
-                in_candidate = true;
-                bestSketchSize = overlapCount;
-                l2_out.sharedSketchSize = overlapCount;
-
-                //Save the position
-                beginOptimalPos = ip.pos;
-                lastOptimalPos = ip.pos;
-              }
-              else if(overlapCount == bestSketchSize)
-              {
-                if (!in_candidate) {
-                  l2_out.sharedSketchSize = overlapCount;
-
-                  //Save the position
-                  beginOptimalPos = ip.pos;
-                }
-
-                in_candidate = true;
-                //Still save the position
-                lastOptimalPos = ip.pos;
-              } else {
-                if (in_candidate) {
-                  // Save and reset
-                  lastOptimalPos = ip.pos;
-                  l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
-                  l2_out.seqId = ip.seqId;
-                  l2_out.strand = strand_votes >= 0 ? strnd::FWD : strnd::REV;
-                  l2_vec_out.push_back(l2_out);
-                  l2_out = L2_mapLocus_t();
-                }
-                in_candidate = false;
-              }
-            }
-
-            strand_votes += ip.strand * ip.side;
-            //std::cout << overlapCount << ", " << strand_votes << "\t" << (ip.side == side::OPEN ? "OPEN " : "CLOSE") << " @ " << std::to_string(ip.strand) << ", " << ip.seqId << ":" << ip.pos << "\t" << std::endl;
-            assert(overlapCount >= 0);
-            assert(overlapCount <= Q.sketchSize);
-          }//End of while loop
-
-          if (in_candidate) {
-            // Save and reset
-            auto& ip = intervalPoints.back();
-            lastOptimalPos = ip.pos;
-            l2_out.meanOptimalPos =  (beginOptimalPos + lastOptimalPos) / 2;
-            l2_out.seqId = ip.seqId;
-            l2_out.strand = strand_votes >= 0 ? strnd::FWD : strnd::REV;
-            l2_vec_out.push_back(l2_out);
+          if (l2_vec_out.size() == 0) {
+            std::cout << "ERROR: No l2 locus found for an l1 locus!\n";
           }
 
         }
 
-        struct compareMinimizersByPos
-        {
-          typedef std::pair<seqno_t, offset_t> P;
 
-          bool operator() (const MinimizerInfo &m, const P &val)
-          {
-            return ( P(m.seqId, m.wpos) < val);
-          }
-
-          bool operator() (const P &val, const MinimizerInfo &m)
-          {
-            return (val < P(m.seqId, m.wpos) );
-          }
-        } cmp;
-
-        MIIter_t searchIndex(Sketch::MI_Type& mindex, seqno_t seqId, offset_t winpos) const
-        {
-            std::pair<seqno_t, offset_t> searchPosInfo(seqId, winpos);
-
-            /*
-            *          * std::lower_bound --  Returns an iterator pointing to the first element in the range
-            *                   *                      that is not less than (i.e. greater or equal to) value.
-            *                            */
-            MIIter_t iter = std::lower_bound(mindex.begin(), mindex.end(), searchPosInfo, this->cmp);
-
-            return iter;
-        }////Define std::map and let it contain only the query minimizers
-
-      /**
-       * @brief                                 Compute jaccard similarity of given query seq 
-       *                                        at a single position on reference sequence
-       * @param[in]   Q                         query sequence information
-       * @param[in]   seqId                     reference sequence id
-       * @param[in]   refStartPos               offset on reference sequence
-       * return                                 jaccard similarity
-       */
-      //template <typename Q_Info>
-        //double computeJaccardSinglePos(Q_Info &Q, seqno_t seqId, offset_t refStartPos)
-        //{
-          ////Look up L1 candidate's begin in the index
-          //MIIter_t superWindowRangeStart = this->refSketch.searchIndex(seqId, refStartPos);
-
-          //if (Q.sketchSize == 0)
-            //return 0;
-          
-          ////If iterator points to index end or a different reference sequence, return zero 
-          //if ( this->refSketch.isMinimizerIndexEnd(superWindowRangeStart) || superWindowRangeStart->seqId != seqId)
-            //return 0;
-
-          ////Count of minimizer windows in a super-window
-          //offset_t countMinimizerWindows = Q.len - (param.windowSize-1) - (param.kmerSize-1); 
-
-          ////Look up the end of the first L2 super-window in the index
-          //MIIter_t superWindowRangeEnd = this->refSketch.searchIndex(seqId, 
-              //superWindowRangeStart->wpos + countMinimizerWindows);
-
-          //SlideMapper<Q_Info> slidemap(Q);
-
-          ////Insert all the minimizers in the first super-window
-          //slidemap.insert_ref(superWindowRangeStart, superWindowRangeEnd);
-
-          //return slidemap.sharedSketchElements * 1.0 / Q.sketchSize;
-        //}
 
 
       /**
@@ -881,7 +765,7 @@ namespace skch
       template <typename VecIn>
         void mergeMappings(VecIn &readMappings)
         {
-          assert(param.split == true);
+          DEBUG_ASSERT(param.split == true);
 
           if(readMappings.size() < 2)
             return;
@@ -1067,7 +951,7 @@ namespace skch
         //Print the results
         for(auto &e : readMappings)
         {
-          assert(e.refSeqId < this->refSketch.metadata.size());
+          DEBUG_ASSERT(e.refSeqId < this->refSketch.metadata.size());
 
           outstrm  << (param.filterMode == filter::ONETOONE ? qmetadata[e.querySeqId].name : queryName)
             << " " << e.queryLen 

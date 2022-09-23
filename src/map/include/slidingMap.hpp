@@ -15,7 +15,7 @@
 #include "map/include/base_types.hpp"
 
 //External includes
-//#include "assert.hpp"
+#include "assert.hpp"
 
 namespace skch
 {
@@ -166,9 +166,9 @@ namespace skch
 
           updateCountersAfterInsert(status, mi);
 
-          assert(std::distance(slidingWindowMinhashes.begin(), pivot) == Q.sketchSize - 1);
-          assert(this->sharedSketchElements >= 0);
-          assert(this->sharedSketchElements <= Q.sketchSize);
+          DEBUG_ASSERT(std::distance(slidingWindowMinhashes.begin(), pivot) == Q.sketchSize - 1);
+          DEBUG_ASSERT(this->sharedSketchElements >= 0);
+          DEBUG_ASSERT(this->sharedSketchElements <= Q.sketchSize);
         }
 
         /**
@@ -181,7 +181,7 @@ namespace skch
           const hash_t hashVal = mi.hash;
           bool pivotDeleteCase = false;
           
-          //assert(this->slidingWindowMinhashes.find(hashVal) != this->slidingWindowMinhashes.end(), "Can't find hash to delete", hashVal);
+          //DEBUG_ASSERT(this->slidingWindowMinhashes.find(hashVal) != this->slidingWindowMinhashes.end(), "Can't find hash to delete", hashVal);
           // End point may not have had an open point
           if (this->slidingWindowMinhashes.find(hashVal) == this->slidingWindowMinhashes.end()) {
               return;
@@ -224,9 +224,9 @@ namespace skch
           if(!pivotDeleteCase) 
             updateCountersAfterDelete(status, mi);
 
-          assert(std::distance(slidingWindowMinhashes.begin(), pivot) == Q.sketchSize - 1);
-          assert(this->sharedSketchElements >= 0);
-          assert(this->sharedSketchElements <= Q.sketchSize);
+          DEBUG_ASSERT(std::distance(slidingWindowMinhashes.begin(), pivot) == Q.sketchSize - 1);
+          DEBUG_ASSERT(this->sharedSketchElements >= 0);
+          DEBUG_ASSERT(this->sharedSketchElements <= Q.sketchSize);
         }
 
 

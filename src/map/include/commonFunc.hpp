@@ -25,7 +25,7 @@
 //External includes
 #include "common/murmur3.h"
 #include "common/prettyprint.hpp"
-//#include "assert.hpp"
+#include "assert.hpp"
 
 namespace skch
 {
@@ -175,12 +175,12 @@ namespace skch
             }
           }
         }
-        //assert(sketched_vals.size() <= sketchSize);
+        //DEBUG_ASSERT(sketched_vals.size() <= sketchSize);
         mashimizerIndex.reserve(sketched_vals.size());
         std::for_each(sketched_vals.begin(), sketched_vals.end(),
             [&mashimizerIndex](auto& pair) {
             pair.second.strand = pair.second.strand > 0 ? strnd::FWD : (pair.second.strand == 0 ? strnd::AMBIG : strnd::REV);
-            //assert(std::abs(pair.second.strand) < 2);
+            //DEBUG_ASSERT(std::abs(pair.second.strand) < 2);
             mashimizerIndex.push_back(pair.second);
         });
 
@@ -221,10 +221,10 @@ namespace skch
         makeUpperCase(seq, len);
 
         //Compute reverse complement of seq
-        std::unique_ptr<char[]> seqRev(new char[len]);
+        std::unique_ptr<char[]> seqRev(new char[kmerSize]);
 
-        if(alphabetSize == 4) //not protein
-          CommonFunc::reverseComplement(seq, seqRev.get(), len);
+        //if(alphabetSize == 4) //not protein
+          //CommonFunc::reverseComplement(seq, seqRev.get(), len);
 
         for(offset_t i = 0; i < len - kmerSize + 1; i++)
         {
@@ -246,8 +246,10 @@ namespace skch
           hash_t hashFwd = CommonFunc::getHash(seq + i, kmerSize); 
           hash_t hashBwd;
 
-          if(alphabetSize == 4)
-            hashBwd = CommonFunc::getHash(seqRev.get() + len - i - kmerSize, kmerSize);
+          if(alphabetSize == 4) {
+            CommonFunc::reverseComplement(seq + i, seqRev.get(), kmerSize);
+            hashBwd = CommonFunc::getHash(seqRev.get(), kmerSize);
+          }
           else  //proteins
             hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
 
@@ -265,7 +267,7 @@ namespace skch
             //std::cout << "(" << it->first << ": " << it->second.second << "), ";
           //}
           //std::cout << std::endl;
-          //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+          //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
 
           //If front minimum is not in the current window, remove it
           if (!Q.empty() && std::get<2>(Q.front()) <  currentWindowId) {
@@ -312,7 +314,7 @@ namespace skch
             Q.pop_front();
           }
 
-          //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+          //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
           //Consider non-symmetric kmers only
           if(hashBwd != hashFwd)
           {
@@ -343,7 +345,7 @@ namespace skch
             sortedWindow[currentKmer].second += 1;
           }
 
-          //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+          //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
 
           //Select the minimizer from Q and put into index
           if(currentWindowId >= 0)
@@ -379,16 +381,16 @@ namespace skch
               }
             }
 #ifdef DEBUG
-            //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
-            //assert(piv.p == sortedWindow.end() || (piv.p->second.first.wpos == -1 && piv.p->second.first.wpos_end == -1));
-            //assert((sortedWindow.size() == 0 || currentWindowId < 0) || (std::prev(piv.p)->second.first.wpos != -1 && std::prev(piv.p)->second.first.wpos_end == -1));
+            //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+            //DEBUG_ASSERT(piv.p == sortedWindow.end() || (piv.p->second.first.wpos == -1 && piv.p->second.first.wpos_end == -1));
+            //DEBUG_ASSERT((sortedWindow.size() == 0 || currentWindowId < 0) || (std::prev(piv.p)->second.first.wpos != -1 && std::prev(piv.p)->second.first.wpos_end == -1));
             //for (auto it = sortedWindow.begin(); it != sortedWindow.end(); it++) {
               //if (piv.p == sortedWindow.end() || it->first < piv.p->first) {
-                //assert(it->second.first.wpos != -1, it->second.first);
-                //assert(it->second.first.wpos_end == -1);
+                //DEBUG_ASSERT(it->second.first.wpos != -1, it->second.first);
+                //DEBUG_ASSERT(it->second.first.wpos_end == -1);
               //} else {
-                //assert(it->second.first.wpos == -1, it->second.first, currentWindowId);
-                //assert(it->second.first.wpos_end == -1);
+                //DEBUG_ASSERT(it->second.first.wpos == -1, it->second.first, currentWindowId);
+                //DEBUG_ASSERT(it->second.first.wpos_end == -1);
               //}
             //}
 #endif
@@ -406,9 +408,9 @@ namespace skch
           //if (sortedWindow.size() > sketchSize*2 + 20) {
             //sortedWindow.erase(std::prev(sortedWindow.end()));
           //}
-          //assert(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
-          //assert(piv.p == sortedWindow.end() || (piv.p->second.first.wpos == -1 && piv.p->second.first.wpos_end == -1));
-          //assert(((sortedWindow.size() == 0 || currentWindowId < 0) || (std::prev(piv.p)->second.first.wpos != -1 && std::prev(piv.p)->second.first.wpos_end == -1)));
+          //DEBUG_ASSERT(std::distance(sortedWindow.begin(), piv.p) == std::min<int>(sortedWindow.size(), sketchSize), seqCounter, currentWindowId, i);
+          //DEBUG_ASSERT(piv.p == sortedWindow.end() || (piv.p->second.first.wpos == -1 && piv.p->second.first.wpos_end == -1));
+          //DEBUG_ASSERT(((sortedWindow.size() == 0 || currentWindowId < 0) || (std::prev(piv.p)->second.first.wpos != -1 && std::prev(piv.p)->second.first.wpos_end == -1)));
         }
 
         uint64_t rank = 1;
@@ -421,28 +423,54 @@ namespace skch
           std::advance(iter, 1);
           rank += 1;
         }
-        std::for_each(mashimizerIndex.begin(), mashimizerIndex.end(), [] (auto& mi) {
-          mi.strand = mi.strand < 0 ? (mi.strand == 0 ? strnd::AMBIG : strnd::REV) : strnd::FWD;
-        });
-        std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {return l.wpos < r.wpos;});
 
-        // TODO assert that this is false
-        mashimizerIndex.erase(std::unique(mashimizerIndex.begin(), mashimizerIndex.end(), 
-                    [](auto& l, auto& r) {
-                        return (l.wpos == r.wpos) && (l.hash == r.hash);
-            }),
-            mashimizerIndex.end());
         // TODO Not sure why these are occuring but they are a bug
         mashimizerIndex.erase(std::remove_if(mashimizerIndex.begin(), mashimizerIndex.end(), 
                     [](auto& mi) {
                         return mi.wpos < 0 || mi.wpos_end < 0;
             }),
             mashimizerIndex.end());
+
+        std::vector<MashimizerInfo> chunkedMIs;
+        std::for_each(mashimizerIndex.begin(), mashimizerIndex.end(), [&chunkedMIs, windowSize] (auto& mi) {
+          mi.strand = mi.strand < 0 ? (mi.strand == 0 ? strnd::AMBIG : strnd::REV) : strnd::FWD;
+          if (mi.wpos_end > mi.wpos + windowSize) {
+            for (int chunk = 0; chunk < std::ceil(float(mi.wpos_end - mi.wpos) / float(windowSize)); chunk++) {
+              chunkedMIs.push_back(
+                MashimizerInfo{
+                  mi.hash, 
+                  mi.seqId, 
+                  mi.wpos + chunk*windowSize, 
+                  std::min(mi.wpos + chunk*windowSize + windowSize, mi.wpos_end),
+                  mi.strand
+                } 
+              );
+            }
+          }
+        });
+        mashimizerIndex.erase(std::remove_if(mashimizerIndex.begin(), mashimizerIndex.end(), 
+                    [windowSize](auto& mi) {
+                        return mi.wpos_end - mi.wpos > windowSize;
+            }),
+            mashimizerIndex.end());
+        mashimizerIndex.insert(mashimizerIndex.end(), chunkedMIs.begin(), chunkedMIs.end());
+
+
+
+        std::sort(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& l, auto& r) {return l.wpos < r.wpos;});
+
+        // TODO DEBUG_ASSERT that this is false
+        mashimizerIndex.erase(std::unique(mashimizerIndex.begin(), mashimizerIndex.end(), 
+                    [](auto& l, auto& r) {
+                        return (l.wpos == r.wpos) && (l.hash == r.hash);
+            }),
+            mashimizerIndex.end());
+
 #ifdef DEBUG
         ////std::cout << "INFO, skch::CommonFunc::addMinimizers, inserted minimizers for sequence id = " << seqCounter << "\n";
         ////std::cout << "INFO, skch::CommonFunc::addMinimizers, length of sequence  = " << len << "\n";
-        //assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos >= 0;}));
-        //assert(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos_end >= 0;}));
+        //DEBUG_ASSERT(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos >= 0;}));
+        //DEBUG_ASSERT(std::all_of(mashimizerIndex.begin(), mashimizerIndex.end(), [](auto& mi) {return mi.wpos_end >= 0;}));
         //std::vector<MashimizerInfo> endpos_heap;
         //auto heap_cmp = [](auto& l, auto& r) {return l.wpos_end >= r.wpos_end;};
         //for (auto& mi : mashimizerIndex) {
@@ -452,104 +480,11 @@ namespace skch
           //}
           //endpos_heap.push_back(mi);
           //std::push_heap(endpos_heap.begin(), endpos_heap.end(), heap_cmp);
-          //assert(endpos_heap.size() <= sketchSize);
+          //DEBUG_ASSERT(endpos_heap.size() <= sketchSize);
         //}
 #endif
         ////std::cout << "BEFORE " << mashimizerIndex.size() << "\n";
         ////std::cout << "AFTER " << mashimizerIndex.size() << "\n";
-      }
-
-    /**
-     * @brief       compute winnowed minimizers from a given sequence and add to the index
-     * @param[out]  minimizerIndex  minimizer table storing minimizers and their position as we compute them
-     * @param[in]   seq             pointer to input sequence
-     * @param[in]   len             length of input sequence
-     * @param[in]   kmerSize
-     * @param[in]   windowSize
-     * @param[in]   seqCounter      current sequence number, used while saving the position of minimizer
-     */
-    template <typename T>
-      inline void addMinimizers(std::vector<T> &minimizerIndex, 
-          char* seq, offset_t len,
-          int kmerSize, 
-          int windowSize,
-          int alphabetSize,
-          seqno_t seqCounter)
-      {
-        /**
-         * Double-ended queue (saves minimum at front end)
-         * Saves pair of the minimizer and the position of hashed kmer in the sequence
-         * Position of kmer is required to discard kmers that fall out of current window
-         */
-        std::deque< std::pair<MinimizerInfo, offset_t> > Q;
-
-        makeUpperCase(seq, len);
-
-        //Compute reverse complement of seq
-        char* seqRev = new char[len];
-
-        if(alphabetSize == 4) //not protein
-          CommonFunc::reverseComplement(seq, seqRev, len);
-
-        for(offset_t i = 0; i < len - kmerSize + 1; i++)
-        {
-          //The serial number of current sliding window
-          //First valid window appears when i = windowSize - 1
-          offset_t currentWindowId = i - windowSize + 1;
-
-          //Hash kmers
-          hash_t hashFwd = CommonFunc::getHash(seq + i, kmerSize); 
-          hash_t hashBwd;
-
-          if(alphabetSize == 4)
-            hashBwd = CommonFunc::getHash(seqRev + len - i - kmerSize, kmerSize);
-          else  //proteins
-            hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
-
-          //Consider non-symmetric kmers only
-          if(hashBwd != hashFwd)
-          {
-            //Take minimum value of kmer and its reverse complement
-            hash_t currentKmer = std::min(hashFwd, hashBwd);
-
-            //Check the strand of this minimizer hash value
-            auto currentStrand = hashFwd < hashBwd ? strnd::FWD : strnd::REV;
-
-            //If front minimum is not in the current window, remove it
-            while(!Q.empty() && Q.front().second <=  i - windowSize)
-              Q.pop_front();
-
-            //Hashes less than equal to currentKmer are not required
-            //Remove them from Q (back)
-            while(!Q.empty() && Q.back().first.hash >= currentKmer) 
-              Q.pop_back();
-
-            //Push currentKmer and position to back of the queue
-            //-1 indicates the dummy window # (will be updated later)
-            Q.push_back( std::make_pair(
-                  MinimizerInfo{currentKmer, seqCounter, -1, currentStrand},
-                  i)); 
-
-            //Select the minimizer from Q and put into index
-            if(currentWindowId >= 0)
-            {
-              //We save the minimizer if we are seeing it for first time
-              if(minimizerIndex.empty() || minimizerIndex.back() != Q.front().first)
-              {
-                //Update the window position in this minimizer
-                //This step also ensures we don't re-insert the same minimizer again
-                Q.front().first.wpos = currentWindowId;     
-                minimizerIndex.push_back(Q.front().first);
-              }
-            }
-          }
-        }
-
-#ifdef DEBUG
-        //std::cout << "INFO, skch::CommonFunc::addMinimizers, inserted minimizers for sequence id = " << seqCounter << "\n";
-#endif
-
-        delete [] seqRev;
       }
 
    /**

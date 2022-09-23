@@ -89,9 +89,6 @@ namespace skch
       using MI_Map_t = google::dense_hash_map< MinimizerMapKeyType, MinimizerMapValueType >;
       MI_Map_t minimizerPosLookupIndex;
 
-      std::vector<IntervalPoint> sortedOpenPoints;
-      std::vector<IntervalPoint> sortedClosePoints;
-
       /**
        * Keep list of minimizers, sequence# , their position within seq , here while parsing sequence 
        * Note : position is local within each contig
@@ -126,6 +123,8 @@ namespace skch
             if (p.outIndex != "") {
               this->write(p.outIndex);
             }
+            // TODO should write these out and save instead of drop every time
+            this->dropFreqSeedSet();
           }
 
       private:
@@ -287,21 +286,8 @@ namespace skch
 
         for(auto &e : mashimizerIndex)
         {
-          // [hash value -> info about minimizer]
-#ifdef DEBUG
-          //if (!minimizerPosLookupIndex[e.hash].empty() && e.seqId == minimizerPosLookupIndex[e.hash].back().seqId) {
-              //assert(minimizerPosLookupIndex[e.hash].back().wpos_end <= e.wpos);
-          //}
-              
-#endif
-          //if ( !param.split ) {
-            sortedOpenPoints.push_back(IntervalPoint{side::OPEN, e.seqId, e.wpos, e.strand, e.hash});
-            sortedClosePoints.push_back(IntervalPoint{side::CLOSE, e.seqId, e.wpos_end, e.strand, e.hash});
-          //}
           minimizerPosLookupIndex[e.hash].push_back(e);
         }
-        //std::sort(sortedOpenPoints.begin(), sortedOpenPoints.end());
-        std::sort(sortedClosePoints.begin(), sortedClosePoints.end());
 
         std::cout << "INFO, skch::Sketch::index, unique minimizers = " << minimizerPosLookupIndex.size() << std::endl;
       }
@@ -389,45 +375,19 @@ namespace skch
         }
       }
 
+      /**
+       * @brief     Remove frequent seeds from set
+       */
+      void dropFreqSeedSet()
+      {
+        this->mashimizerIndex.erase(
+          std::remove_if(mashimizerIndex.begin(), mashimizerIndex.end(), [&] 
+            (auto& mi) {return this->frequentSeeds.find(mi.hash) != this->frequentSeeds.end();}
+          ), mashimizerIndex.end()
+        );
+      }
+
       public:
-
-      /**
-       * @brief               search hash associated with given position inside the index
-       * @details             if MIIter_t iter is returned, than *iter's wpos >= winpos
-       * @param[in]   seqId
-       * @param[in]   winpos
-       * @return              iterator to the minimizer in the index
-       */
-      MIIter_t searchIndex(seqno_t seqId, offset_t winpos) const
-      {
-        std::pair<seqno_t, offset_t> searchPosInfo(seqId, winpos);
-
-        /*
-         * std::lower_bound --  Returns an iterator pointing to the first element in the range
-         *                      that is not less than (i.e. greater or equal to) value.
-         */
-        MIIter_t iter = std::lower_bound(this->mashimizerIndex.begin(), this->mashimizerIndex.end(), searchPosInfo, cmp);
-
-        return iter;
-      }
-
-      /**
-       * @brief                 check if iterator points to index end
-       * @param[in]   iterator
-       * @return                boolean value
-       */
-      bool isMinimizerIndexEnd(const MIIter_t &it) const
-      {
-        return it == this->mashimizerIndex.end();
-      }
-
-      /**
-       * @brief     Return end iterator on mashimizerIndex
-       */
-      MIIter_t getMinimizerIndexEnd() const
-      {
-        return this->mashimizerIndex.end();
-      }
 
       int getFreqThreshold() const
       {
@@ -439,26 +399,6 @@ namespace skch
         return frequentSeeds.find(h) != frequentSeeds.end();
       }
 
-      private:
-
-      /**
-       * @brief     functor for comparing minimizers by their position in mashimizerIndex
-       * @details   used for locating minimizers with the required positional information
-       */
-      struct compareMinimizersByPos
-      {
-        typedef std::pair<seqno_t, offset_t> P;
-
-        bool operator() (const MinimizerInfo &m, const P &val)
-        {
-          return ( P(m.seqId, m.wpos) < val);
-        }
-
-        bool operator() (const P &val, const MinimizerInfo &m)
-        {
-          return (val < P(m.seqId, m.wpos) );
-        }
-      } cmp;
 
     }; //End of class Sketch
 } //End of namespace skch
